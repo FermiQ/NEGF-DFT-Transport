@@ -1,0 +1,1 @@
+mpif90 -mkl=cluster -fpp -O2 -traceback -g -xHost -I${PETSC_DIR}/include/petsc  -I${PETSC_DIR}/include/petsc/finclude -I${PETSC_DIR}/include  fc_to_petsc.f90 -o fc_to_petsc -L$PETSC_DIR/lib -lpetsc -lslepc

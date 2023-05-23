@@ -1,0 +1,26 @@
+FC=mpiifort
+LD=mpiifort
+
+OPT=-O2 -xHost -qopenmp
+#OPT=-O0 -check all  -check noarg_temp_created
+DBG=-g -traceback
+
+PETSC_ROOT=${PETSC_DIR}
+PETSC_INCLUDE =-I$(PETSC_ROOT)/include
+PETSC_LIB=-L$(PETSC_ROOT)/lib -lpetsc -lslepc -lsuperlu_dist
+
+#PEXSI_ROOT=/home/prog/pexsi_package/pexsi_v1.2.0/build/
+PEXSI_ROOT=${HOME}/prog/pexsi/pexsi_v2.0.0/build_make
+PEXSI_INCLUDE=-I${PEXSI_ROOT}/include
+PEXSI_LIB=-L${PEXSI_ROOT}/lib -l pexsi_linux_release_v2.0 -lmkl_intel_lp64
+
+FFLAGS=-fpp $(OPT) $(DBG) $(PETSC_INCLUDE) $(PEXSI_INCLUDE)
+
+LIBS=-liomp5 -lstdc++ $(PETSC_LIB) $(PEXSI_LIB)
+LDFLAGS=$(LIBS)
+
+BIN_DIR=./bin
+OBJ_DIR=./obj
+MOD_DIR=./mod
+
+FFLAGS+=-module $(MOD_DIR)

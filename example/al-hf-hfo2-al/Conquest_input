@@ -1,0 +1,124 @@
+
+
+#Diag.KProcGroups 4
+#SC.MinIters 2
+
+
+General.BlockAssign Raster
+
+
+
+IO.Iprint_index 1
+IO.Iprint_gen 2
+
+
+
+
+SC.MaxIters 1000
+
+
+minE.SelfConsistent t
+SC.LinearMixingSC t
+SC.LinearMixingFactor 0.1
+
+
+SC.WaveDependentMetric f
+SC.MetricFactor 0.1
+
+SC.KerkerPreCondition t
+SC.KerkerFactor 0.5
+
+SC.LinearMixingEnd 1e-11
+SC.LateStageReset 5
+
+SC.MaxEarly 5
+DM.MaxPulay 5
+SC.MaxPulay 5
+
+
+IO.Iprint_init 3
+IO.Iprint_pseudo 1
+
+
+IO.Title Hydrogen static test
+IO.Coordinates coord.in
+IO.FractionalAtomicCoords  t
+IO.Iprint 1
+IO.Iprint_gen 2
+
+Spin.SpinPolarised f
+
+
+
+## General Parameters
+General.NumberOfSpecies 3
+General.PseudopotentialType  haman
+General.FunctionalType 101
+General.PartitionMethod  Hilbert
+General.LoadRho f
+
+## Moving Atom
+AtomMove.FIRE  f
+
+## Basis Sets
+Basis.BasisSet PAOs
+
+## Energy Minimisation
+minE.SCTolerance 1.0e-7
+SC.ContinueOnSCFail t
+
+##Integration Grid
+Grid.GridCutoff 100
+
+
+## Finding Density Matrix
+#DM.SolutionMethod ordern
+DM.SolutionMethod diagon
+
+
+
+Diag.kT 0.00095004315035621989
+
+Diag.SmearingType 0
+Diag.MPOrder 2
+
+
+Diag.MPMesh T
+Diag.MPMeshX 5
+Diag.MPMeshY 5
+Diag.MPMeshZ 1
+
+#Diag.NumKpts 9
+#%block Diag.Kpoints
+#0.00	0.00	0.00	1.00
+#%endblock Diag.Kpoints
+
+
+
+
+## Atomic Information
+%block ChemicalSpeciesLabel
+1 47.8800000000 Al
+2 178.4900000000 Hf-sp
+3 16.0000000000 O-high
+%endblock ChemicalSpeciesLabel
+
+
+%block Hf-sp
+Atom.ValenceCharge  12
+Atom.NumberOfSupports 13
+Atom.SupportFunctionRange 8.29
+%endblock Hf-sp
+
+%block O-high
+Atom.ValenceCharge  6
+Atom.NumberOfSupports 9
+Atom.SupportFunctionRange 4.87
+%endblock O-high
+
+%block Al
+Atom.ValenceCharge  3
+Atom.NumberOfSupports 9
+Atom.SupportFunctionRange 8.24
+%endblock Al
+
