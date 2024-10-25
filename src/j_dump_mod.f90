@@ -1,9 +1,15 @@
 module j_dump_mod
 
+  ! This module contains the subroutine `dump_j` for processing and writing out density matrices.
+
 contains
 
   subroutine dump_j(p_out, outdir, outfile_in)
-#include <petsc/finclude/petsc.h>
+    ! This subroutine processes a density matrix and writes it to a file in a format suitable for Conquest.
+    ! It handles periodic boundary conditions and splits the matrix into components for left and right electrodes.
+
+    ! Use statements for necessary modules.
+    #include <petsc/finclude/petsc.h>
     use petscmat
     use petsc_mod
     use petsc_wrapper
@@ -13,18 +19,21 @@ contains
 
     implicit none
 
-    Mat, allocatable :: p_out(:,:,:)
-    character(*) :: outfile_in, outdir
+    ! Declaration of variables.
+    Mat, allocatable :: p_out(:,:,:)  ! Input density matrix (3D array of PETSc matrices).
+    character(*) :: outfile_in, outdir ! Input file name and output directory.
 
-    integer :: i1, i2, ierr
+    integer :: i1, i2, ierr  ! Loop counters and error code.
     
-    Mat :: p_mat1
-    character(256) :: outfile
+    Mat :: p_mat1  ! Temporary PETSc matrix.
+    character(256) :: outfile ! Output file name.
         
+    ! Commented-out code for alternative writing method.
 !~       outfile = adjustl(trim(outfile)//"_matrix2.i00.p000000")
 !~       call write_conquest2(outfile, xyz_ecc, dlat_c, nat_ecc, tomat, inao_c, neigh_c,&
 !~       nlist_c, ndim_c, atoms_c, p_out)    
 
+    ! Explanation of the algorithm for handling periodic boundary conditions and electrode contributions.
 !~ we can only calculate the matrices defined on the scattering region (SR), to be precise 
 !~ for R_i,j,k=0 (assuming PBC in i,j) for the representation on the real space grid we also 
 !~ need the contribution from R_i,j_k=-1,+1, for the density matrix we subsitute here the
@@ -39,9 +48,11 @@ contains
 !~ So we assume PBC and substitute once Cll3->Crr3 and once Crr3->Cll3 and write out both
 !~ seperately and stich everything togther in Conquest.
 
+    ! Loop over unit cells for the left electrode.
     do i2 = -ncell_l(2), ncell_l(2)
       do i1 = -ncell_l(1), ncell_l(1)
       
+        ! Extract and add sub-matrices for the left electrode.
         call MatZeroEntries(p_k10_l(i1 ,i2), ierr)
         call petsc_split_matrix(p_out(i1, i2, 0), p_mat1, &
           nmu_l  + 1 , nmu_l + nmu_l, 1, nmu_l, MAT_INITIAL_MATRIX)
@@ -63,9 +74,11 @@ contains
       end do
     end do
     
+    ! Loop over unit cells for the right electrode.
     do i2 = -ncell_r(2), ncell_r(2)
       do i1 = -ncell_r(1), ncell_r(1)
       
+        ! Extract and add sub-matrices for the right electrode.
         call MatZeroEntries(p_k01_r(i1, i2), ierr)
         call petsc_split_matrix(p_out(i1, i2, 0), p_mat1, &
          nmu_ecc - nmu_r - nmu_r + 1, nmu_ecc - nmu_r, nmu_ecc - nmu_r + 1 , nmu_ecc, &
@@ -90,6 +103,7 @@ contains
       end do
     end do
 
+    ! Combine sub-matrices for the left electrode and write to file.
     do i2 = -ncell_l(2), ncell_l(2)
       do i1 = -ncell_l(1), ncell_l(1)
         call MatZeroEntries(p_out(i1, i2, -1), ierr)
@@ -105,6 +119,7 @@ contains
     call write_conquest2(trim(outfile), outdir, xyz_ecc, dlat_c, nat_ecc, tomat, tomatr, &
    & inao_c, neigh_c, nlist_c, ndim_c, atoms_c, p_out)
 
+    ! Combine sub-matrices for the right electrode and write to file.
     do i2 = -ncell_r(2), ncell_r(2)
       do i1 = -ncell_r(1), ncell_r(1)
         call MatZeroEntries(p_out(i1, i2, -1), ierr)

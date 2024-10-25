@@ -4,6 +4,16 @@ module init_ep_coupling
 contains
 
   subroutine check_lambdas_on_disk(l_load)
+    ! Purpose: Checks if lambda files exist on disk for all k-points and modes.
+    !
+    ! Functionality: Iterates over all k-points and electron-phonon modes, 
+    ! constructing filenames for lambda files. It then checks if these files exist. 
+    ! If any file is missing, it sets l_load to .true., indicating that lambdas 
+    ! need to be computed. The result is broadcast to all processes.
+    !
+    ! Parameters:
+    !   l_load (logical, output):  A logical flag indicating whether lambda files need to be loaded (.true.) or not (.false.).
+
     use kinds
     use misc
     use globals
@@ -38,6 +48,15 @@ contains
   end subroutine check_lambdas_on_disk
 
   subroutine get_lambda_ep(ik)
+    ! Purpose: Computes or loads the electron-phonon coupling matrix (lambda) for a given k-point.
+    !
+    ! Functionality: This subroutine either loads pre-computed lambda matrices from disk 
+    ! or computes them if they don't exist.  It handles the loading and computation of 
+    ! the electron-phonon coupling matrix for each mode at a given k-point.
+    !
+    ! Parameters:
+    !   ik (integer, input): The index of the k-point.
+
 #include <petsc/finclude/petsc.h>
     use petscmat
     use petsc_mod
@@ -96,15 +115,21 @@ contains
 
   end subroutine get_lambda_ep
 
-! create the first matrix the hard way by using MAT_NEW_NONZERO_LOCATIONS
-! 1. create p_tmp from p_B
-! 2. get the col indices of the nz entries of each row for p_A with matgetrow
-! 3. iat<nat1 and iat>nat2 to -1
-! 4. use matsetvalues to insert 0e0 to iat>=nat1 and iat<=nat2
-! 5. assemble matrix
-! 6. compress out unused allocated nz from p_tmp using MatDuplicate p_tmp -> p_B
-
   subroutine init_ep_active_mat(p_A, p_B, nat1, nat2, imu_to_at)
+    ! Purpose: Creates a submatrix from a larger matrix, selecting only rows and columns corresponding to active atoms.
+    !
+    ! Functionality: This subroutine takes a matrix p_A and creates a submatrix p_B. 
+    ! It selects only the rows and columns of p_A that correspond to atoms within the 
+    ! range [nat1, nat2] using the mapping provided by the imu_to_at array.  It uses 
+    ! PETSc's matrix manipulation functions for efficiency.
+    !
+    ! Parameters:
+    !   p_A (Mat, input): The input matrix.
+    !   p_B (Mat, output): The output submatrix containing only the active atoms.
+    !   nat1 (integer, input): The starting index of the active atoms.
+    !   nat2 (integer, input): The ending index of the active atoms.
+    !   imu_to_at (integer array, input): Mapping between internal indices and atom indices.
+
 #include <petsc/finclude/petsc.h>
     use petscmat
     use petsc_mod
@@ -153,9 +178,21 @@ contains
 
   end subroutine init_ep_active_mat
 
-!~ d1S=<i'|j> (or d2S=<i|j'>) read from Conquest contains <'i|j> which now already include -1 to convert from Cartesian derivative
-!~ to Atomic coordinate displacements  derivatives ( using phi(r,R)=phi(r-R) -> d/dr=-d/dR for the selected atom i_d_at )
   subroutine get_dS(p_tmp_dS, p_dS, i_d_at, imu_to_at, ij)
+    ! Purpose: Extracts a submatrix from a larger matrix based on atom index and selection criteria.
+    !
+    ! Functionality: This subroutine extracts a submatrix p_dS from a temporary matrix p_tmp_dS. 
+    ! The selection is based on the atom index i_d_at and a selection flag ij.  If ij=1, 
+    ! it selects rows corresponding to i_d_at; if ij=2, it selects columns corresponding 
+    ! to i_d_at.  It uses the imu_to_at array for mapping between indices.
+    !
+    ! Parameters:
+    !   p_tmp_dS (Mat, input): The input temporary matrix.
+    !   p_dS (Mat, output): The output submatrix.
+    !   i_d_at (integer, input): The index of the atom to select.
+    !   imu_to_at (integer array, input): Mapping between internal indices and atom indices.
+    !   ij (integer, input): Selection flag (1 for rows, 2 for columns).
+
 #include <petsc/finclude/petsc.h>
     use petscmat
     use petsc_mod

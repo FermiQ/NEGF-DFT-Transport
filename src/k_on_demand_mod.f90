@@ -4,24 +4,34 @@ module k_on_demand_mod
 contains
 
   subroutine k_on_demand(ik, iwhat)
-#include <petsc/finclude/petsc.h>
-    use petscmat  
+    ! Purpose: This subroutine performs various calculations depending on the value of `iwhat`.  It primarily involves Fourier transforms of matrices related to Hamiltonian (H), overlap (S), and possibly current density (vnl) calculations.
 
-    use globals
-    use ft_mod
-    use petsc_mod
+    ! Parameters:
+    !   ik: Integer, the k-point index.
+    !   iwhat: Integer, determines the type of calculation to perform:
+    !          1: H, S, and electrode calculations.
+    !          2: D, S for bond order analysis.
+    !          3: H, S calculations with Hermitian checks.
+
+#include <petsc/finclude/petsc.h>
+    use petscmat  ! PETSc matrix operations
+
+    use globals   ! Module containing global variables
+    use ft_mod    ! Module containing Fourier transform routines
+    use petsc_mod ! Module containing PETSc-related variables and functions
 
     implicit none
 
     integer :: ik, iwhat
 
-    integer :: ierr, i1, i2, i3
+    integer :: ierr, i1, i2, i3  ! Error codes and temporary integer variables
     
-    Mat :: A
-    PetscScalar :: pp
-    PetscReal :: norm
+    Mat :: A                ! PETSc matrix for Hermitian checks
+    PetscScalar :: pp       ! PETSc scalar variable
+    PetscReal :: norm       ! PETSc real variable for norm calculation
 
     if (iwhat .eq. 1) then ! H,S ecc and electrode
+      ! Nullify pointers to avoid potential issues.  This is crucial for memory management, especially when dealing with dynamically allocated arrays.
       nullify (p_h00k_cc)
       nullify (p_s00k_cc)
       if (calc_current_density) nullify (p_vnl00k_cc)
@@ -38,6 +48,7 @@ contains
       nullify (p_h01k_r)
       nullify (p_s01k_r)      
 
+      ! Zero out the entries of the matrices.  This ensures that previous calculations don't interfere with the current ones.
       call MatZeroEntries(p_h00_ik_cc(1), ierr)
       call MatZeroEntries(p_s00_ik_cc(1), ierr)
       if (calc_current_density) call MatZeroEntries(p_vnl00_ik_cc(1), ierr)
@@ -54,6 +65,7 @@ contains
       call MatZeroEntries(p_h01_ik_r(1), ierr)
       call MatZeroEntries(p_s01_ik_r(1), ierr)
 
+      ! Perform Fourier transforms.  These transforms convert data from real space to reciprocal space (k-space).
       call fourier_trans_ik(p_h00_cc, p_h00_ik_cc(1), kp_r, ik, dlat_r, ncell_c(1), ncell_c(2), 0)
       call fourier_trans_ik(p_s00_cc, p_s00_ik_cc(1), kp_r, ik, dlat_r, ncell_c(1), ncell_c(2), 0)
       if (calc_current_density) &
@@ -71,6 +83,7 @@ contains
       call fourier_trans_ik(p_h01_r, p_h01_ik_r(1), kp_r, ik, dlat_r, ncell_c(1), ncell_c(2), 0)
       call fourier_trans_ik(p_s01_r, p_s01_ik_r(1), kp_r, ik, dlat_r, ncell_c(1), ncell_c(2), 0)
 
+      ! Assign the results of the Fourier transforms to the appropriate variables.
       p_h00k_cc(ik:ik) => p_h00_ik_cc(1:1)
       p_s00k_cc(ik:ik) => p_s00_ik_cc(1:1)
       if (calc_current_density) p_vnl00k_cc(ik:ik) => p_vnl00_ik_cc(1:1)
@@ -112,6 +125,7 @@ contains
       call MatZeroEntries(p_h00_ik_cc(1), ierr)
       call MatZeroEntries(p_s00_ik_cc(1), ierr)
 
+      ! 3D Fourier transform for case 3.
       call fourier3d_trans_ik(p_h00_diag, p_h00_ik_cc(1), kp_c, ik, dlat_c, ncell_c(1), &
         ncell_c(2), ncell_c(3), 0)
       call fourier3d_trans_ik(p_s00_diag, p_s00_ik_cc(1), kp_c, ik, dlat_c, ncell_c(1), &
@@ -122,6 +136,7 @@ contains
       
       pp = 0.5d0
       
+      ! Hermitian checks and norm calculations for H and S matrices.
       call MatHermitianTranspose(p_h00_ik_cc(1), MAT_INITIAL_MATRIX, A, ierr)
       call MatAXPY(A,p_minus1,p_h00_ik_cc(1),DIFFERENT_NONZERO_PATTERN, ierr)
       call MatNorm(A, NORM_FROBENIUS, norm, ierr)

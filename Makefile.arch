@@ -1,26 +1,36 @@
+# Compiler and linker settings for MPI Fortran compilation.
 FC=mpiifort
 LD=mpiifort
 
+# Optimization flags. -O2: Optimize for speed. -xHost: Use best optimization for the current architecture. -qopenmp: Enable OpenMP for parallel processing.
+#OPT=-O0 -check all  -check noarg_temp_created #Alternative settings for debugging: No optimization, with various checks enabled.
 OPT=-O2 -xHost -qopenmp
-#OPT=-O0 -check all  -check noarg_temp_created
+
+# Debugging flags. -g: Enable debugging information. -traceback: Enable stack trace on errors.
 DBG=-g -traceback
 
+# PETSc (Portable, Extensible Toolkit for Scientific computation) directory and settings.
 PETSC_ROOT=${PETSC_DIR}
-PETSC_INCLUDE =-I$(PETSC_ROOT)/include
-PETSC_LIB=-L$(PETSC_ROOT)/lib -lpetsc -lslepc -lsuperlu_dist
+PETSC_INCLUDE =-I$(PETSC_ROOT)/include # Include directory for PETSc.
+PETSC_LIB=-L$(PETSC_ROOT)/lib -lpetsc -lslepc -lsuperlu_dist # Linker options for PETSc, SLEPc (Scalable Library for Eigenvalue Problem Computations), and SuperLU_Dist (sparse direct solver).
 
-#PEXSI_ROOT=/home/prog/pexsi_package/pexsi_v1.2.0/build/
-PEXSI_ROOT=${HOME}/prog/pexsi/pexsi_v2.0.0/build_make
-PEXSI_INCLUDE=-I${PEXSI_ROOT}/include
-PEXSI_LIB=-L${PEXSI_ROOT}/lib -l pexsi_linux_release_v2.0 -lmkl_intel_lp64
+# PEXSI (Parallel EXascale Solver Infrastructure) directory and settings.
+#PEXSI_ROOT=/home/prog/pexsi_package/pexsi_v1.2.0/build/ #Alternative path.
+PEXSI_ROOT=${HOME}/prog/pexsi/pexsi_v2.0.0/build_make # Path to the PEXSI build directory.
+PEXSI_INCLUDE=-I${PEXSI_ROOT}/include # Include directory for PEXSI.
+PEXSI_LIB=-L${PEXSI_ROOT}/lib -l pexsi_linux_release_v2.0 -lmkl_intel_lp64 # Linker options for PEXSI and Intel MKL (Math Kernel Library).
 
+# Fortran compiler flags. -fpp: Enable Fortran preprocessor.
 FFLAGS=-fpp $(OPT) $(DBG) $(PETSC_INCLUDE) $(PEXSI_INCLUDE)
 
+# Linker libraries. -liomp5: OpenMP library. -lstdc++: C++ standard library.
 LIBS=-liomp5 -lstdc++ $(PETSC_LIB) $(PEXSI_LIB)
-LDFLAGS=$(LIBS)
+LDFLAGS=$(LIBS) # Linker flags.
 
+# Directories for binaries, object files, and module files.
 BIN_DIR=./bin
 OBJ_DIR=./obj
 MOD_DIR=./mod
 
+# Add module directory to compiler flags.
 FFLAGS+=-module $(MOD_DIR)

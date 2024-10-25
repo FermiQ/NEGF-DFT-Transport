@@ -5,6 +5,12 @@ module petsc_control
 contains
 
   subroutine petsc_solver_init()
+    ! Purpose: Initializes PETSc solver parameters.
+    ! Functionality: Sets default matrix types and solver types for different parts of the simulation.
+    !                Allows overriding the default matrix solver type for the coupled-circuit solver via a command-line option.
+    ! Parameters:
+    !   None
+
 #include <petsc/finclude/petscmat.h>
     use petscmat
     use globals, only: mattype_surf, matsolvertype_surf, mattype_cc, matsolvertype_cc,&
@@ -16,23 +22,24 @@ contains
     logical :: lflag
     PetscBool :: p_lflag
 
-! default mattyps and solvers
+    ! default mattyps and solvers
     mattype_surf = MATELEMENTAL
-!~     mattype_surf = MATSCALAPACK
+    !mattype_surf = MATSCALAPACK
     mattype_electrode = MATMPIAIJ
-!~       mattype_electrode=MATDENSE
+    !mattype_electrode=MATDENSE
     mattype_cc = MATMPIAIJ
     mattype_dense = MATMPIDENSE
     mattype_sparse = MATMPIAIJ
 
     matsolvertype_surf = MATSOLVERELEMENTAL ! this must be a solver for dense matrices
-!~     matsolvertype_surf = MATSOLVERSCALAPACK                     ! this must be a solver for dense matrices
+    !matsolvertype_surf = MATSOLVERSCALAPACK                     ! this must be a solver for dense matrices
 
 
     matsolvertype_cc="petsc_default"
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS,&
       PETSC_NULL_CHARACTER, '-pc_factor_mat_solver_type', instr, p_lflag, p_ierr)
+    ! Retrieves the matrix solver type from command-line options. If provided, it overrides the default.
     if (p_lflag) then
       matsolvertype_cc = trim(adjustl(instr))
     end if
@@ -42,6 +49,12 @@ contains
   end subroutine petsc_solver_init
 
   subroutine petsc_init()
+    ! Purpose: Initializes PETSc and SLEPc libraries.
+    ! Functionality: Initializes the PETSc and SLEPc libraries, retrieves the PETSc version number,
+    !                and gets the MPI rank and size.  Sets up global variables for node information.
+    ! Parameters:
+    !   None
+
 #include <slepc/finclude/slepceps.h>
     use slepceps
     use petscmat
@@ -54,13 +67,12 @@ contains
     character(128) :: my_name, outstr, option_file
     PetscInt:: major, minor, subminor, release
 
-!~       call PetscInitialize(PETSC_NULL_CHARACTER,p_ierr)
-
-!~     call SlepcInitialize(PETSC_NULL_CHARACTER, ierr)
+    !call PetscInitialize(PETSC_NULL_CHARACTER,p_ierr)
+    !call SlepcInitialize(PETSC_NULL_CHARACTER, ierr)
     option_file="transp.petsc"
-!~     call PetscInitialize(option_file, ierr)
+    !call PetscInitialize(option_file, ierr)
     call SlepcInitialize(option_file, ierr)
-!~     call PetscOptionsInsertFile(PETSC_COMM_WORLD, PETSC_NULL_OPTIONS, "./trans.petsc", PETSC_TRUE, ierr)
+    !call PetscOptionsInsertFile(PETSC_COMM_WORLD, PETSC_NULL_OPTIONS, "./trans.petsc", PETSC_TRUE, ierr)
 
 
     call PetscPrintf(PETSC_COMM_WORLD, "Init PETSC \n", p_ierr)
@@ -78,6 +90,12 @@ contains
   end subroutine petsc_init
 
   subroutine petsc_subcomm_init()
+    ! Purpose: Initializes a PETSc subcommunicator for parallel processing.
+    ! Functionality: Divides the MPI communicators into subgroups for parallel processing.
+    !                Prints information about node assignments to subcommunicators.
+    ! Parameters:
+    !   None
+
 #include <slepc/finclude/slepceps.h>
     use slepceps
     use petscmat
@@ -97,6 +115,7 @@ contains
 
     allocate (nodes_group(ngroups))
 
+    ! Determines the group and range for each node.
     if ((inode + 1) .le. (iup*nup)) then
       inode_group = ceiling(real(inode + 1)/real(nup))
     else
@@ -181,6 +200,15 @@ contains
 !~     end subroutine petsc_set_locals
 
   function petsc_getlocal_nmu(n, np, inode)
+    ! Purpose: Calculates the local number of unknowns for a given node.
+    ! Functionality: Determines the number of unknowns that should be handled by a specific node.
+    ! Parameters:
+    !   n: Total number of unknowns.
+    !   np: Total number of processors.
+    !   inode: Index of the current node.
+    ! Returns:
+    !   The local number of unknowns for the given node.
+
     implicit none
 
     integer :: petsc_getlocal_nmu, n, np, inode
@@ -197,6 +225,15 @@ contains
   end function
 
   subroutine set_up_petsc_mat(n1l, n1u, n2l, n2u, infofile)
+    ! Purpose: Sets up PETSc matrices. (Incomplete)
+    ! Functionality:  (Not fully implemented)
+    ! Parameters:
+    !   n1l: (Description needed)
+    !   n1u: (Description needed)
+    !   n2l: (Description needed)
+    !   n2u: (Description needed)
+    !   infofile: (Description needed)
+
     use globals
     implicit none
 

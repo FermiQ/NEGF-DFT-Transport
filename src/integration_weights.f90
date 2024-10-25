@@ -2,7 +2,11 @@ module integrations_weights
 !~ from FORTRAN90 Source Codes
 !~ https://people.sc.fsu.edu/~jburkardt/f_src/f_src.html
 !~ released under GNU LGPL
+!~ This module contains subroutines for computing weights for numerical integration.
+!~ The subroutines include line_ncc_rule, r8vec_linspace, clenshaw_curtis_compute,
+!~ kronrod, kronrod_adjust, abwe1, and abwe2.
   implicit none
+
   contains
 
     subroutine line_ncc_rule(n, a, b, x, w)
@@ -101,6 +105,10 @@ module integrations_weights
       end do
 
       return
+    !~ This subroutine computes a Newton-Cotes Closed (NCC) quadrature rule.
+    !~ It takes the order, the endpoints of the interval, the abscissas, and outputs the weights.
+
+    !... rest of the subroutine remains the same ...
     end subroutine line_ncc_rule
 
     subroutine r8vec_linspace(n, a, b, x)
@@ -162,9 +170,15 @@ module integrations_weights
       end if
 
       return
+    !~ This subroutine creates a vector of linearly spaced values.
+    !~ It takes the number of entries, the first and last entries, and outputs a vector of linearly spaced data.
+
+    !... rest of the subroutine remains the same ...
     end subroutine r8vec_linspace
   
     subroutine clenshaw_curtis_compute(order, x, w)
+    !~ This subroutine computes a Clenshaw Curtis quadrature rule.
+    !~ It takes the order of the rule, and outputs the abscissas and weights.
 
     !*****************************************************************************80
     !
@@ -268,9 +282,12 @@ module integrations_weights
       w(order) = w(order)/real(order - 1, kind=8)
 
       return
+    !... rest of the subroutine remains the same ...
     end subroutine clenshaw_curtis_compute  
   
     subroutine kronrod(n, eps, x, w1, w2)
+    !~ This subroutine calculates the abscissas and weights of the 2N+1 point Gauss Kronrod quadrature formula.
+    !~ It takes the order of the Gauss rule, the requested absolute accuracy of the abscissas, and outputs the abscissas and weights for both the Gauss and Gauss Kronrod rules.
 
     !*****************************************************************************80
     !
@@ -482,7 +499,9 @@ module integrations_weights
     end if
 
     return
+    !... rest of the subroutine remains the same ...
     end subroutine kronrod
+
     subroutine kronrod_adjust(a, b, n, x, w1, w2)
 
     !*****************************************************************************80
@@ -528,7 +547,12 @@ module integrations_weights
     w2(1:n + 1) = ((b - a)/2.0D+00)*w2(1:n + 1)
 
     return
+    !~ This subroutine adjusts a Gauss-Kronrod rule from [-1,+1] to [A,B].
+    !~ It takes the endpoints of the new interval, the order of the rule, and the abscissas and weights, and adjusts them accordingly.
+
+    !... rest of the subroutine remains the same ...
     end subroutine kronrod_adjust
+
     subroutine abwe1(n, m, eps, coef2, even, b, x, w)
 
     !*****************************************************************************80
@@ -692,7 +716,12 @@ module integrations_weights
     w = coef2/(fd*d2)
 
     return
+    !~ This subroutine calculates a Kronrod abscissa and weight.
+    !~ It takes the order of the Gauss rule, the value of (N+1)/2, the requested absolute accuracy of the abscissas, a value needed to compute weights, a logical value indicating whether N is even, the Chebyshev coefficients, an estimate for the abscissa, and outputs the computed abscissa and weight.
+
+    !... rest of the subroutine remains the same ...
     end subroutine abwe1
+
     subroutine abwe2(n, m, eps, coef2, even, b, x, w1, w2)
 
     !*****************************************************************************80
@@ -857,6 +886,10 @@ module integrations_weights
     end if
 
     return
+    !~ This subroutine calculates a Gaussian abscissa and two weights.
+    !~ It takes the order of the Gauss rule, the value of (N+1)/2, the requested absolute accuracy of the abscissas, a value needed to compute weights, a logical value indicating whether N is even, the Chebyshev coefficients, an estimate for the abscissa, and outputs the computed abscissa and two weights.
+
+    !... rest of the subroutine remains the same ...
     end subroutine abwe2
     
 end module integrations_weights
