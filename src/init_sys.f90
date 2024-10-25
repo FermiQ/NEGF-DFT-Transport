@@ -1,9 +1,27 @@
+! This module contains the init_sys subroutine, which is responsible for initializing the system parameters and matrices for the electronic structure calculation.
+! The init_sys subroutine reads system information from input files, allocates memory for matrices, performs Fourier transforms, and sets up the Hamiltonian and overlap matrices for the central region and electrodes.
+! It also handles electron-phonon coupling if enabled.
+# This module contains the init_sys subroutine, which is responsible for initializing the system parameters and matrices for the electronic structure calculation.
+# The init_sys subroutine reads system information from input files, allocates memory for matrices, performs Fourier transforms, and sets up the Hamiltonian and overlap matrices for the central region and electrodes.
+# It also handles electron-phonon coupling if enabled.
+
 module init_sys_mod
 
   implicit none
+
 contains
   subroutine init_sys()
+  subroutine init_sys
+
+    ! Purpose: Initializes the system parameters and matrices for the electronic structure calculation.
+    ! This subroutine reads system information from input files, allocates memory for matrices,
+    ! performs Fourier transforms, and sets up the Hamiltonian and overlap matrices for the
+    ! central region and electrodes.  It also handles electron-phonon coupling if enabled.
+
+    ! Include PETSc header file
 #include <petsc/finclude/petsc.h>
+
+    ! Use necessary modules
     use slepceps
     use petscmat
     use petsc_mod
@@ -25,41 +43,135 @@ contains
 
     implicit none
 
+    ! Declare variables
     integer :: ierr, ikx, iky, imu1, imu2, imin, n, i1, i2, i3, iter, j1, j2
+    ! ierr: Error code.
+    ! ikx, iky: Wave vector indices in x and y directions.
+    ! imu1, imu2: Indices for unit cells.
+    ! imin: Minimum index.
+    ! n: Counter variable.
+    ! i1, i2, i3: Loop indices.
+    ! iter: Iteration counter.
+    ! j1, j2: Loop indices.
+
+    ! Declare allocatable arrays
     integer, allocatable :: tomat_tmp(:, :), inao_tmp(:), neigh_tmp(:), ndim_tmp(:), atoms_tmp(:), nlist_tmp(:),&
     &nzrow_c(:), nzrow_l(:), nzrow_r(:)
+    ! tomat_tmp, inao_tmp, neigh_tmp, ndim_tmp, atoms_tmp, nlist_tmp: Temporary arrays for Conquest data.
+    ! nzrow_c, nzrow_l, nzrow_r: Number of nonzero rows for central region, left and right electrodes.
+
     PetscScalar :: trace_c, trace_elec, fix_l, fix_r
+    ! trace_c: Trace of the central region Hamiltonian.
+    ! trace_elec: Trace of the electrode Hamiltonian.
+    ! fix_l, fix_r: Parameters for fixing the left and right electrodes.
+
+    ! Declare other variables
     integer :: iunitscf, iunith1, iunith2, iunith3, ndfts, imu, jmu
+    ! iunitscf, iunith1, iunith2, iunith3: Unit numbers for input files.
+    ! ndfts: Number of DFT calculations.
+    ! imu, jmu: Indices for unit cells.
+
     logical :: makeks
+    ! makeks: Flag indicating whether to generate k-points.
+
     character(strln) :: sdummy
+    ! sdummy: Dummy character variable.
+
     PetscErrorCode :: p_ierr
+    ! p_ierr: PETSc error code.
 
 ! petsc stuff
     real(dp) :: info(MAT_INFO_SIZE)
+    ! info: Array to store matrix information.
+
     PetscInt :: nl1, nl2, ii(1), jj(1), ione, nev, i, j, nlc1, nlc2, m, ic(2), ir(2), k
+    ! nl1, nl2: Number of levels.
+    ! ii, jj: Index arrays.
+    ! ione: Constant value 1.
+    ! nev: Number of eigenvalues.
+    ! i, j: Loop indices.
+    ! nlc1, nlc2: Number of levels.
+    ! m: Counter variable.
+    ! ic, ir: Index arrays.
+    ! k: Counter variable.
+
     PetscViewer :: viewer, xview
+    ! viewer, xview: PETSc viewers.
+
     PetscScalar :: zout(1), p_scal
+    ! zout: Output array.
+    ! p_scal: Scaling factor.
+
     PetscReal :: norm, norm_b, norm_a, norm_m, d1, r0, rm, rp, deps,&
    &norm_r0, norm_rp, norm_rm, dd, d2, dm, ds1, ds2
+    ! norm, norm_b, norm_a, norm_m, d1, r0, rm, rp, deps, norm_r0, norm_rp, norm_rm, dd, d2, dm, ds1, ds2: Real variables for norms and distances.
 
     Mat :: p_tmp, p_helec, p_hecc, p_selec, p_tmp_read, p_mat_tmp
+    ! p_tmp, p_helec, p_hecc, p_selec, p_tmp_read, p_mat_tmp: PETSc matrices.
+
     Mat :: p_tmp1, p_tmp2, p_tmp3, p_tmp4, p_w, p_w2, p_ev
+    ! p_tmp1, p_tmp2, p_tmp3, p_tmp4, p_w, p_w2, p_ev: PETSc matrices.
+
     Vec :: p_ew1, p_ew2, p_v1, p_v2
+    ! p_ew1, p_ew2, p_v1, p_v2: PETSc vectors.
+
     integer :: irow(2), icol(1), ncols, idxm(1), idym(1), iat, ixyz, ik, nnz
+    ! irow: Row indices.
+    ! icol: Column indices.
+    ! ncols: Number of columns.
+    ! idxm, idym: Index arrays.
+    ! iat: Atom index.
+    ! ixyz: Cartesian coordinate index.
+    ! ik: k-point index.
+    ! nnz: Number of nonzero elements.
+
     integer, allocatable :: cols(:), idx(:), idy(:)
+    ! cols, idx, idy: Integer arrays.
+
     integer, pointer :: iidx(:), iidy(:)
+    ! iidx, iidy: Integer pointer arrays.
+
     PetscScalar, allocatable :: p_vals(:), p_vals2(:)
+    ! p_vals, p_vals2: Allocatable arrays of PETSc scalars.
+
     PetscScalar, allocatable, target :: t_x(:)
+    ! t_x: Allocatable target array of PETSc scalars.
+
     PetscScalar, pointer :: p_x(:), p_y(:, :)
+    ! p_x, p_y: PETSc scalar pointer arrays.
+
     PetscBool :: ldone
+    ! ldone: Logical variable.
+
     character(5) :: titel
+    ! titel: Character variable for title.
+
     character(strln) :: s1, s2, what, tmpfile, atstr, xyzstr
+    ! s1, s2: Character variables for file names.
+    ! what: Character variable.
+    ! tmpfile: Character variable for temporary file name.
+    ! atstr, xyzstr: Character variables for atom and coordinate indices.
+
     MatType ::  mattype
+    ! mattype: PETSc matrix type.
+
     MatFactorInfo :: matfacinfo(MAT_FACTORINFO_SIZE)
+    ! matfacinfo: PETSc matrix factor information.
+
     PetscInt, pointer :: i_row_p(:), i_col_p(:)
+    ! i_row_p, i_col_p: PETSc integer pointer arrays.
+
     integer(8) :: counti, count_rate, countf
+    ! counti, count_rate, countf: Counters for timing.
+
     logical :: l_init_ep_mat, l_read_dh
+    ! l_init_ep_mat: Logical variable for initializing electron-phonon matrix.
+    ! l_read_dh: Logical variable for reading electron-phonon matrix from disk.
+
     Mat, pointer :: p_tmp_k(:), p_tmp_cc(:, :)
+    ! p_tmp_k: Pointer to an array of PETSc matrices.
+    ! p_tmp_cc: Pointer to a 2D array of PETSc matrices.
+
 
 ! debug ep and loe
 !~       l_ep_loe=.false.
@@ -71,22 +183,33 @@ contains
     l_init_ep_mat = .true.
 
     write (pstr_out, fmt='(2A)') "C: ", trim(ecc_dir); call petsc_print_master()
+    ! Prints the directory of the central region to the output stream.
+
     call read_sysinfo(xyz_ecc, species_ecc, imu_ecc, nat_ecc, &
       dlat_c, ncell_c, nmat_c, ef_c, n_electrons_ecc, trim(ecc_dir)//"/sys_info.dat")
+    ! Reads system information for the central region from the sys_info.dat file.
+
 !~ nmat_c read from sys_info.dat is obosolte. It should contain the
 !~ total number of nonzeros over all the realspace unitcells of the realspace
 !~ matrices (H, K, S). Calculate this later directly from K mat.
 
     write (pstr_out, fmt='(2A)') "L electrode: ", trim(elec_l_dir)
     call petsc_print_master()
+    ! Prints the directory of the left electrode to the output stream.
+
     call read_sysinfo(xyz_elec_l, species_elec_l, imu_elec_l, nat_elec_l, &
       dlat_l, ncell_l, nmat_l, ef_l, n_electrons_l, trim(elec_l_dir)//"/sys_info.dat")
-      
+    ! Reads system information for the left electrode from the sys_info.dat file.
+
     write (pstr_out, fmt='(2A)') "R electrode: ", trim(elec_r_dir)
     call petsc_print_master()
+    ! Prints the directory of the right electrode to the output stream.
+
     call read_sysinfo(xyz_elec_r, species_elec_r, imu_elec_r, nat_elec_r, &
       dlat_r, ncell_r, nmat_r, ef_r, n_electrons_r, trim(elec_r_dir)//"/sys_info.dat")
+    ! Reads system information for the right electrode from the sys_info.dat file.
 
+    ! Adjusts the number of unit cells based on the dimensionality of the diagonalization.
     if ((k_mat_mode .eq. 2)) then
       if (diag_dim .eq. 1) then
         ncell_c(2:3) = 0
@@ -100,17 +223,22 @@ contains
     end if
 
     allocate (lcr_info(nat_ecc), stat=ierr)
+    ! Allocates memory for lcr_info array.
+
+    ! Checks for allocation errors.
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "allocation error init_sys ", ierr
       call error()
     end if
 
+    ! Checks the consistency of the system parameters if not skipping the check.
     if (.not.l_diag_skip_check) then
       call check_sys(xyz_ecc, xyz_elec_l, xyz_elec_r, nat_ecc, nat_elec_l, &
         nat_elec_r, lcr_info)
       write (pstr_out, fmt='(A)') "electrodes ok"; call petsc_print_master()
     end if
 
+    ! Calculates the number of degrees of freedom for each region.
     nmu_c = sum(imu_ecc(nat_elec_l + 1:nat_ecc - nat_elec_r))
     nmu_l = sum(imu_ecc(1:nat_elec_l))
     nmu_r = sum(imu_ecc(nat_ecc - nat_elec_r + 1:nat_ecc))
@@ -119,8 +247,9 @@ contains
 
     nmu_c = nmu_ecc
 
-! mapping imu to atoms, we need this for ep coupling later
+    ! Creates a mapping from the number of degrees of freedom to atoms.
     allocate (imu_to_at(nmu_c), stat=ierr)
+    ! Checks for allocation errors.
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "allocation error imu_to_at ", ierr
       call error()
@@ -134,12 +263,16 @@ contains
     end do
 
     makeks = .not. kpoints_from_file
+    ! Sets the flag for k-point generation.
+
     write (pstr_out, fmt='(A)') "ecc"; call petsc_print_master()
     call get_rlat(dlat_c, rlat_c, kp_c, wkp_c, nk_l, nkx_dez, nky_dez, nkz_diag, makeks)
     write (pstr_out, fmt='(A)') "left electrode"; call petsc_print_master()
     call get_rlat(dlat_l, rlat_l, kp_l, wkp_l, nk_l, nkx_dez, nky_dez, nkz_diag, makeks)
     write (pstr_out, fmt='(A)') "right electrode"; call petsc_print_master()
     call get_rlat(dlat_r, rlat_r, kp_r, wkp_r, nk_r, nkx_dez, nky_dez, nkz_diag, makeks)
+    ! Generates or reads k-points for each region.
+
     if (kpoints_from_file) then
       call read_kpoint_file(kp_l, wkp_l, nk_l)
       call read_kpoint_file(kp_r, wkp_r, nk_r)
@@ -154,6 +287,7 @@ contains
     ! for the time being assume them to be equal in l, c, and r
     nk_c = nk_l
 
+    ! Prints Fermi energies and number of degrees of freedom.
     write (pstr_out, fmt='(A,e24.12)') "ef_c=", ef_c; call petsc_print_master()
     write (pstr_out, fmt='(A,e24.12)') "ef_l=", ef_l; call petsc_print_master()
     write (pstr_out, fmt='(A,e24.12)') "ef_r=", ef_r; call petsc_print_master()
@@ -189,22 +323,28 @@ contains
               p_k01_r(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2)), &
               p_h10_r(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2)), &
               p_s10_r(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2)), &
-              p_k10_r(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2)), &              
+              p_k10_r(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2)), &
               stat=ierr)
+    ! Allocates memory for PETSc matrices.  These matrices represent the Hamiltonian and overlap matrices for the central region and electrodes.
+
+    ! Checks for allocation errors.
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "allocation error init_sys ", ierr
       call error()
     end if
 
 
+    ! Allocates memory for current density calculation if enabled.
     if (calc_current_density) then
       allocate(p_vnl00_cc(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2)), stat = ierr)
+      ! Checks for allocation errors.
       if (ierr .ne. 0) then
         write (errormsg, fmt='(A,i8)') "allocation error init_sys ", ierr
         call error()
       end if
     end if
 
+    ! Allocates additional matrices for k_mat_mode = 2.
     if (k_mat_mode .eq. 2) then
       allocate(p_h01_cc(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2)), &
         p_s01_cc(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2)), &
@@ -213,6 +353,7 @@ contains
         p_h00_diag(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2),-1:1), &
         p_s00_diag(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2),-1:1), &
         stat = ierr)
+      ! Checks for allocation errors.
       if (ierr .ne. 0) then
         write (errormsg, fmt='(A,i8)') "allocation error init_sys ", ierr
         call error()
@@ -220,15 +361,23 @@ contains
     end if
 
 ! additional matrices for ep coupling
+    ! Allocates matrices for electron-phonon coupling if enabled.
     if (l_ep) then
       n_ep_active_atoms = ep_active_atoms(2) - ep_active_atoms(1) + 1
       allocate (p_dh_cc(-ncell_c(1):ncell_c(1), -ncell_c(2):ncell_c(2), ep_active_atoms(1):ep_active_atoms(2), 3), &
                 stat=ierr)
+      ! Checks for allocation errors.
+      if (ierr .ne. 0) then
+        write (errormsg, fmt='(A,i8)') "allocation error init_sys ", ierr
+        call error()
+      end if
     end if
 ! petsc: init arrays -----------------
 
     call mpi_barrier(MPI_COMM_WORLD, ierr)
+    ! Ensures all processes have completed before proceeding.
 
+    ! Initializes phonon parameters and allocates memory for phonon-related arrays if electron-phonon coupling is enabled.
     if (l_ep) then
       nat3 = nat_ecc*3
       call init_phonons()
@@ -236,6 +385,7 @@ contains
                 p_Kphonon00k_cc(nk_c), p_phonon_EV(nk_c), p_phonon_EW(nk_c), &
                 n_ep_modes_k(nk_c), &
                 stat=ierr)
+      ! Checks for allocation errors.
       if (ierr .ne. 0) then
         write (errormsg, fmt='(A,i8)') "allocation failure init_sys ", ierr
         call error()
@@ -257,11 +407,17 @@ contains
 ! Scattering region
     call system_clock(counti, count_rate)
     pstr_out = "read data of scattering region..."; call petsc_print_master()
+    ! Starts timer for reading scattering region data.
+
     allocate (nrow_pproc(2, nprocs), stat=ierr)
+    ! Allocates memory for nrow_pproc array.
+
+    ! Checks for allocation errors.
     if (ierr .ne. 0) then
       write (pstr_out, fmt='(A,i8)') "allocation error  init_sys ", ierr; call petsc_print_master()
     end if
 
+    ! Loads Hamiltonian and overlap matrices for the central region and electrodes.
     ! H-matrix
 
     s1 = "0"
@@ -276,13 +432,15 @@ contains
 !~     call nzs_to_procs(nrow_pproc, nzrow_c)
     call rows_to_procs(nrow_pproc, nmu_ecc) ! use rows to proc in accordance with pexsi
 
-      do i1=1,nprocs
-        write(pstr_out,fmt='(A,5i8)') "nz ",i1,nrow_pproc(1,i1),nrow_pproc(2,i1),&
-        &nrow_pproc(2,i1)-nrow_pproc(1,i1)+1, nmu_ecc ; call petsc_print_master()
-      end do
+    ! Prints nonzero structure information.
+    do i1=1,nprocs
+      write(pstr_out,fmt='(A,5i8)') "nz ",i1,nrow_pproc(1,i1),nrow_pproc(2,i1),&
+      &nrow_pproc(2,i1)-nrow_pproc(1,i1)+1, nmu_ecc ; call petsc_print_master()
+    end do
 
     nmat_c = 0
 
+    ! Loads Hamiltonian, overlap, and density matrices for each unit cell of the central region.
     do i1 = -ncell_c(1), ncell_c(1)
       do i2 = -ncell_c(2), ncell_c(2)
 
@@ -313,6 +471,7 @@ contains
         mattype_sparse, cols_loc, nzrow_loc, nnz_out = nnz)
         nmat_c = nmat_c + nnz
 
+        ! Loads additional matrices if k_mat_mode is 2.
         if (k_mat_mode .eq. 2) then
 
           tmpfile = trim(ecc_dir)//"/H_u_"//trim(s1)//"_"//trim(s2)//"_-1"//"_petsc.dat"
@@ -346,6 +505,7 @@ contains
         call MatDuplicate(p_dmatxy(i1, i2, 0), MAT_SHARE_NONZERO_PATTERN, p_s00_cc(i1, i2), ierr)
         call petsc_mat_load(p_s00_cc(i1, i2), tmpfile, .false., .false., nrow_pproc, mattype_sparse)
 
+        ! Loads electron-phonon coupling matrices if enabled.
         if (l_ep) then
 
           call init_ep_active_mat(p_dmatxy(i1, i2, 0), p_tmp_ep_mat,&
@@ -376,12 +536,12 @@ contains
           end if
 
         end if
-        
+
         if (calc_current_density) then
           ! Vnl-matrix
-          tmpfile = trim(ecc_dir)//"/Vnl_"//trim(s1)//"_"//trim(s2)//"_0"//"_petsc.dat"        
+          tmpfile = trim(ecc_dir)//"/Vnl_"//trim(s1)//"_"//trim(s2)//"_0"//"_petsc.dat"
           call MatDuplicate(p_dmatxy(i1, i2, 0), MAT_SHARE_NONZERO_PATTERN, p_vnl00_cc(i1, i2), ierr)
-          call petsc_mat_load(p_vnl00_cc(i1, i2), tmpfile, .false., .false., nrow_pproc, mattype_sparse)          
+          call petsc_mat_load(p_vnl00_cc(i1, i2), tmpfile, .false., .false., nrow_pproc, mattype_sparse)
         end if
 
       end do
@@ -422,7 +582,7 @@ contains
         call petsc_mat_load(p_k00_l(i1, i2), tmpfile, .true., .false., nrow_pproc_elec_l, &
         &  mattype_electrode, nnz_out = nnz)
         nmat_l = nmat_l + nnz
-        
+
         ! S_L_00
         tmpfile = trim(elec_l_dir)//"/S_"//trim(s1)//"_"//trim(s2)//"_0"//"_petsc.dat"
         call MatDuplicate(p_k00_l(i1, i2), MAT_SHARE_NONZERO_PATTERN, p_s00_l(i1, i2), ierr)
@@ -487,7 +647,7 @@ contains
           call MatZeroEntries(p_h01_l(i1, i2), ierr)
         end if
       end do
-    end do      
+    end do
 
 ! Right electrode
     pstr_out = "read data of right electrode "; call petsc_print_master()
@@ -545,7 +705,7 @@ contains
         tmpfile = trim(elec_r_dir)//"/K_u_"//trim(s1)//"_"//trim(s2)//"_-1"//"_petsc.dat"
         call petsc_mat_load(p_k10_r(i1, i2), tmpfile, .true., .false., nrow_pproc_elec_r, &
        &  mattype_electrode, nnz_out = nnz)
-        nmat_r = nmat_r + nnz        
+        nmat_r = nmat_r + nnz
 
         ! S_r_10
         tmpfile = trim(elec_r_dir)//"/S_"//trim(s1)//"_"//trim(s2)//"_-1"//"_petsc.dat"
@@ -579,7 +739,7 @@ contains
           call MatZeroEntries(p_h01_r(i1, i2), ierr)
         end if
       end do
-    end do      
+    end do
 
 
     call system_clock(countf)
@@ -619,12 +779,12 @@ contains
     call read_conquest_info(ecc_dir, xyz_ecc, dlat_c, nat_ecc, tomat, tomatr, inao_c, neigh_c, nlist_c, ndim_c, atoms_c)
     nmu_l = sum(imu_ecc(1:nat_elec_l))
     nmu_r = sum(imu_ecc(nat_ecc - nat_elec_r + 1:nat_ecc))
-    
+
     dlat_l3 = dlat_l
     dlat_l3(3,3) = dlat_l3(3,3) * 3d0
     dlat_r3 = dlat_r
     dlat_r3(3,3) = dlat_r3(3,3) * 3d0
-    
+
     do i = 1, nat_elec_l
       xyz_elec_l3(1:3, i) = xyz_elec_l(1:3, i)
       xyz_elec_l3(1:3, nat_elec_l + i) = xyz_elec_l(1:3, i) + [ 0.0d0, 0.0d0, dlat_l(3,3) ]
@@ -635,7 +795,7 @@ contains
       xyz_elec_r3(1:3, nat_elec_r + i) = xyz_elec_r(1:3, i) + [ 0.0d0, 0.0d0, dlat_r(3,3) ]
       xyz_elec_r3(1:3, nat_elec_r * 2 + i) = xyz_elec_r(1:3, i) + [ 0.0d0, 0.0d0, dlat_r(3,3)*2d0 ]
     end do
-    
+
     if (l_reaktor) then
       call read_conquest_info(trim(elec_l_dir)//"_reaktor", xyz_elec_l3, dlat_l3, nat_elec_l3, tomat_l, tomatr_l, inao_l, neigh_l, nlist_l, ndim_l, atoms_l)
       call read_conquest_info(trim(elec_r_dir)//"_reaktor", xyz_elec_r3, dlat_r3, nat_elec_r3, tomat_r, tomatr_r, inao_r, neigh_r, nlist_r, ndim_r, atoms_r)
@@ -657,13 +817,13 @@ contains
         write (errormsg, fmt='(A,i8)') "allocation failure init_sys ", ierr
         call error()
       end if
-      
+
       if (calc_current_density) then
         allocate(p_vnl00k_cc(nk_c), stat = ierr)
         if (ierr .ne. 0) then
           write (errormsg, fmt='(A,i8)') "allocation failure init_sys ", ierr
           call error()
-        end if 
+        end if
       end if
 
 !   initialise k-space matrices with same nonzero pattern as in real space
@@ -710,7 +870,7 @@ contains
           call MatDuplicate(p_s01k_r(1), MAT_SHARE_NONZERO_PATTERN, p_s01k_r(i1), ierr)
           if (calc_current_density) then
             call MatDuplicate(p_vnl00k_cc(1), MAT_SHARE_NONZERO_PATTERN, p_vnl00k_cc(i1), ierr)
-          end if          
+          end if
         end if
 
         if (l_ep) then
@@ -846,7 +1006,7 @@ contains
         call petsc_get_alloc_preG(p_tmp, p_preG, nmu_l, nmu_r)
         call petsc_get_a_with_b_c(p_invGr, p_tmp, p_tmp, mattype_sparse)
         call MatPreallocatorPreallocate(p_preG, PETSC_TRUE, p_invGr, ierr)
-        call MatSetOption (p_invGr, MAT_NO_OFF_PROC_ENTRIES, PETSC_FALSE, ierr)        
+        call MatSetOption (p_invGr, MAT_NO_OFF_PROC_ENTRIES, PETSC_FALSE, ierr)
         call petsc_mat_info(p_tmp, "Hk", ierr)
         call petsc_mat_info(p_invGr, "Gr", ierr)
         call MatZeroEntries(p_invGr, ierr)
@@ -857,7 +1017,7 @@ contains
         call fourier_trans_ik(p_s00_cc, p_tmp, kp_r, 1, dlat_r, ncell_c(1), ncell_c(2), 0)
         call MatDuplicate(p_tmp, MAT_DO_NOT_COPY_VALUES, p_s00_ik_cc(1), ierr)
         call MatDestroy(p_tmp, ierr)
-        
+
         if (calc_current_density) then
           call MatDuplicate(p_vnl00_cc(0, 0), MAT_DO_NOT_COPY_VALUES, p_tmp, ierr)
           call fourier_trans_ik(p_vnl00_cc, p_tmp, kp_r, 1, dlat_r, ncell_c(1), ncell_c(2), 0)
@@ -954,35 +1114,35 @@ contains
 !~         call petsc_mat_info(p_h00_cc(0, 0), "before CC ", ierr)
         pstr_out = "add electrode L to C"; call petsc_print_master()
         p_scal = p_one
-        
+
         do i2 = -ncell_l(2), ncell_l(2)
           do i1 = -ncell_l(1), ncell_l(1)
-          
+
             j1 = 0
             j2 = j1 + nmu_l
             call petsc_add_sub_B_to_A(p_h00_l(i1, i2), p_h00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
-            call petsc_add_sub_B_to_A(p_s00_l(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)            
-!~             call petsc_add_sub_B_to_A(p_s00_l(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)            
+            call petsc_add_sub_B_to_A(p_s00_l(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
+!~             call petsc_add_sub_B_to_A(p_s00_l(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_h10_l(i1, i2), p_h00_cc(i1, i2), j2, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_s10_l(i1, i2), p_s00_cc(i1, i2), j2, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_h01_l(i1, i2), p_h00_cc(i1, i2), j1, j2, p_scal, INSERT_VALUES, PETSC_FALSE)
-!~             call petsc_add_sub_B_to_A(p_s01_l(i1, i2), p_s00_cc(i1, i2), j1, j2, p_scal+vl, INSERT_VALUES, PETSC_FALSE)            
-            
-!~             j1 = j1 + nmu_l
-!~             j2 = j1 + nmu_l
-!~             call petsc_add_sub_B_to_A(p_h00_l(i1, i2), p_h00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
-!~             call petsc_add_sub_B_to_A(p_s00_l(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)            
-!~             call petsc_add_sub_B_to_A(p_h10_l(i1, i2), p_h00_cc(i1, i2), j2, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
-!~             call petsc_add_sub_B_to_A(p_s10_l(i1, i2), p_s00_cc(i1, i2), j2, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)
-!~             call petsc_add_sub_B_to_A(p_h01_l(i1, i2), p_h00_cc(i1, i2), j1, j2, p_scal, INSERT_VALUES, PETSC_FALSE)
-!~             call petsc_add_sub_B_to_A(p_s01_l(i1, i2), p_s00_cc(i1, i2), j1, j2, p_scal+vl, INSERT_VALUES, PETSC_FALSE)            
-            
-!~             j1 = j1 + nmu_l
-!~             j2 = j1 + nmu_l
-!~             call petsc_add_sub_B_to_A(p_h00_l(i1, i2), p_h00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
-!~             call petsc_add_sub_B_to_A(p_s00_l(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)            
+!~             call petsc_add_sub_B_to_A(p_s01_l(i1, i2), p_s00_cc(i1, i2), j1, j2, p_scal+vl, INSERT_VALUES, PETSC_FALSE)
 
-            
+!~             j1 = j1 + nmu_l
+!~             j2 = j1 + nmu_l
+!~             call petsc_add_sub_B_to_A(p_h00_l(i1, i2), p_h00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
+!~             call petsc_add_sub_B_to_A(p_s00_l(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)
+!~             call petsc_add_sub_B_to_A(p_h10_l(i1, i2), p_h00_cc(i1, i2), j2, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
+!~             call petsc_add_sub_B_to_A(p_s10_l(i1, i2), p_s00_cc(i1, i2), j2, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)
+!~             call petsc_add_sub_B_to_A(p_h01_l(i1, i2), p_h00_cc(i1, i2), j1, j2, p_scal, INSERT_VALUES, PETSC_FALSE)
+!~             call petsc_add_sub_B_to_A(p_s01_l(i1, i2), p_s00_cc(i1, i2), j1, j2, p_scal+vl, INSERT_VALUES, PETSC_FALSE)
+
+!~             j1 = j1 + nmu_l
+!~             j2 = j1 + nmu_l
+!~             call petsc_add_sub_B_to_A(p_h00_l(i1, i2), p_h00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
+!~             call petsc_add_sub_B_to_A(p_s00_l(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vl, INSERT_VALUES, PETSC_FALSE)
+
+
             if (k_mat_mode .eq. 2) then
               call MatZeroEntries(p_h10_cc(i1,i2),ierr)
               call MatZeroEntries(p_s10_cc(i1,i2),ierr)
@@ -995,31 +1155,31 @@ contains
         pstr_out = "add electrode R to C"; call petsc_print_master()
         do i2 = -ncell_r(2), ncell_r(2)
           do i1 = -ncell_r(1), ncell_r(1)
-          
+
             j1 = nmu_c - nmu_r
-            j2 = j1 - nmu_r          
+            j2 = j1 - nmu_r
             call petsc_add_sub_B_to_A(p_h00_r(i1, i2), p_h00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
             call petsc_add_sub_B_to_A(p_s00_r(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_s00_r(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vr, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_h01_r(i1, i2), p_h00_cc(i1, i2), j2, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
-!~             call petsc_add_sub_B_to_A(p_s01_r(i1, i2), p_s00_cc(i1, i2), j2, j1, p_scal+vr, INSERT_VALUES, PETSC_FALSE)            
+!~             call petsc_add_sub_B_to_A(p_s01_r(i1, i2), p_s00_cc(i1, i2), j2, j1, p_scal+vr, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_h10_r(i1, i2), p_h00_cc(i1, i2), j1, j2, p_scal, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_s10_r(i1, i2), p_s00_cc(i1, i2), j1, j2, p_scal+vr, INSERT_VALUES, PETSC_FALSE)
 
 !~             j1 = j1 - nmu_r
-!~             j2 = j1 - nmu_r          
+!~             j2 = j1 - nmu_r
 !~             call petsc_add_sub_B_to_A(p_h00_r(i1, i2), p_h00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_s00_r(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vr, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_h01_r(i1, i2), p_h00_cc(i1, i2), j2, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
-!~             call petsc_add_sub_B_to_A(p_s01_r(i1, i2), p_s00_cc(i1, i2), j2, j1, p_scal+vr, INSERT_VALUES, PETSC_FALSE)            
+!~             call petsc_add_sub_B_to_A(p_s01_r(i1, i2), p_s00_cc(i1, i2), j2, j1, p_scal+vr, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_h10_r(i1, i2), p_h00_cc(i1, i2), j1, j2, p_scal, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_s10_r(i1, i2), p_s00_cc(i1, i2), j1, j2, p_scal+vr, INSERT_VALUES, PETSC_FALSE)
 
 !~             j1 = j1 - nmu_r
-!~             j2 = j1 - nmu_r          
+!~             j2 = j1 - nmu_r
 !~             call petsc_add_sub_B_to_A(p_h00_r(i1, i2), p_h00_cc(i1, i2), j1, j1, p_scal, INSERT_VALUES, PETSC_FALSE)
 !~             call petsc_add_sub_B_to_A(p_s00_r(i1, i2), p_s00_cc(i1, i2), j1, j1, p_scal+vr, INSERT_VALUES, PETSC_FALSE)
-            
+
             if (k_mat_mode .eq. 2) then
               call MatZeroEntries(p_h01_cc(i1,i2),ierr)
               call MatZeroEntries(p_s01_cc(i1,i2),ierr)
@@ -1106,14 +1266,16 @@ contains
     end if
 
     call MPI_BARRIER(PETSC_COMM_WORLD, ierr)
-    
+
 !~     call dump_kmat_lr("K_negf_matrix2.i00.p000000", trim(elec_l_dir)//"_reaktor", "l")
-!~     call dump_kmat_lr("K_negf_matrix2.i00.p000000", trim(elec_r_dir)//"_reaktor", "r")  
+!~     call dump_kmat_lr("K_negf_matrix2.i00.p000000", trim(elec_r_dir)//"_reaktor", "r")
 !~     call dump_kmat(.true., "K_negf_matrix2.i00.p000000", ecc_dir)
 !~     call petsc_cleanup()
 !~     call slepcfinalize(ierr)
-!~     call MPI_FINALIZE(ierr)    
+!~     call MPI_FINALIZE(ierr)
 !~     stop
 
   end subroutine init_sys
 end module init_sys_mod
+
+    logical :: l

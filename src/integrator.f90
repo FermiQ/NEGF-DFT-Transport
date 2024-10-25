@@ -9,9 +9,11 @@ module integrator_mod
   use petsc_mod, only: pstr_out, petsc_print_master
   implicit none
 
-  integer :: intlr, n_fermipols
-  real(dp) :: r_eq, e0, rpfix, ipfix, phi_low, eu, el
-  complex(dp) :: y, x_low, y_low, dx_low, dy_low
+  ! Global variables for the integrator module
+  integer :: intlr, n_fermipols  ! intlr: Integer variable, likely representing left/right electrode. n_fermipols: Number of Fermi poles.
+  real(dp) :: r_eq, e0, rpfix, ipfix, phi_low, eu, el ! r_eq: Equilibrium distance. e0: Energy offset. rpfix, ipfix: Real and imaginary fixes. phi_low: Lower phi value. eu, el: Upper and lower energies.
+  complex(dp) :: y, x_low, y_low, dx_low, dy_low ! y: Complex variable. x_low, y_low: Lower x and y values. dx_low, dy_low: Differences in x and y.
+
 
 contains
 
@@ -20,26 +22,34 @@ contains
     use petsc_mod
     implicit none
 
-    Mat :: p_Dl, p_Dr
+    ! Input: PETSc matrices representing left and right contributions
+    Mat :: p_Dl, p_Dr 
+    ! Output: Allocatable array of PETSc scalars representing weights
     PetscScalar, allocatable :: dc_weights(:)
 
-    PetscScalar :: a_l, a_r, p_val
-    integer :: imu1, imu2, iat1, ierr, imu3
-    Mat :: p_tmp_l, p_tmp_r    
+    PetscScalar :: a_l, a_r, p_val ! a_l, a_r: Sum of diagonal elements for left and right matrices. p_val: Temporary variable to store matrix values.
+    integer :: imu1, imu2, iat1, ierr, imu3 ! Loop indices and error code.
+    Mat :: p_tmp_l, p_tmp_r ! Temporary PETSc matrices (not used in the current implementation).
     
     imu2 = 0
     imu3 = 0
+    ! Loop over atoms
     do iat1 = 1, nat_ecc
       a_l = 0d0
       a_r = 0d0
+      ! Loop over modes for each atom
       do imu1 = 1, imu_ecc(iat1)
         imu2 = imu2 + 1
-       call petsc_mat_getvalue(imu2 - 1, imu2 - 1, p_val, p_Dl, 1, PETSC_COMM_WORLD)
+        ! Get diagonal element from p_Dl
+        call petsc_mat_getvalue(imu2 - 1, imu2 - 1, p_val, p_Dl, 1, PETSC_COMM_WORLD)
         a_l = a_l + p_val
-       call petsc_mat_getvalue(imu2 - 1 , imu2 - 1 , p_val, p_Dr, 1, PETSC_COMM_WORLD)
+        ! Get diagonal element from p_Dr
+        call petsc_mat_getvalue(imu2 - 1 , imu2 - 1 , p_val, p_Dr, 1, PETSC_COMM_WORLD)
         a_r = a_r + p_val
       end do
+      ! Calculate weight
       p_val = a_l / (a_l + a_r)
+      ! Assign weight to dc_weights
       do imu1 = 1, imu_ecc(iat1)
         imu3 = imu3 + 1       
         dc_weights(imu3) = p_val
@@ -62,10 +72,12 @@ contains
 
     implicit none
 
+    ! Input/Output: Complex matrices and vectors representing weights
     complex(dp), allocatable :: wl(:, :), wr(:, :), alphal(:), alphar(:)
-    complex(dp) :: znorm
-    integer :: iat1, iat2
+    complex(dp) :: znorm ! Temporary complex variable for normalization
+    integer :: iat1, iat2 ! Loop indices
 
+    ! Calculate weights
     do iat2 = 1, nat_ecc
       do iat1 = 1, nat_ecc
         znorm = zsqrt(alphal(iat1)*alphal(iat2)) + zsqrt(alphar(iat1)*alphar(iat2))
@@ -80,10 +92,12 @@ contains
 
     implicit none
 
-    real(dp) :: mu1, mu2
-    integer :: lr
-    real(dp) :: eoff_l, eoff_u, mu_l, mu_u
+    ! Input: Chemical potentials and left/right indicator
+    real(dp) :: mu1, mu2 ! mu1, mu2: Chemical potentials.
+    integer :: lr ! lr: Integer representing left/right electrode.
+    real(dp) :: eoff_l, eoff_u, mu_l, mu_u ! eoff_l, eoff_u: Lower and upper energy offsets. mu_l, mu_u: Lower and upper chemical potentials.
 
+    ! Initialize equilibrium integration parameters
     mu_l = min(mu1, mu2)
     mu_u = max(mu1, mu2)
     intlr = lr
@@ -104,9 +118,11 @@ contains
 #include <petsc/finclude/petscmat.h>
     use globals, only: l_ionode
     implicit none
-    integer :: lr
-    complex(dp) :: z1, z2
+    ! Input: Left/right indicator
+    integer :: lr ! lr: Integer representing left/right electrode.
+    complex(dp) :: z1, z2 ! Temporary complex variables.
 
+    ! Initialize non-equilibrium integration parameters
     intlr = lr
     el = log(epsfermi/(1d0 - epsfermi))*kb*temperature_el + min(mul, mur)
     eu = log(1d0/epsfermi - 1d0)*kb*temperature_el + max(mul, mur)
@@ -128,28 +144,36 @@ contains
       
     implicit none
     
-    Mat :: p_Dneq_dc
-    PetscScalar :: dc_weights(:)
+    ! Input: PETSc matrix and weights
+    Mat :: p_Dneq_dc ! p_Dneq_dc: PETSc matrix.
+    PetscScalar :: dc_weights(:) ! dc_weights: Array of PETSc scalars representing weights.
     
+    ! Local variables
     integer :: ierr, imu1, imu2,  nl1, nl2, i1, nlc1, nlc2, &
-      nrow, ncol, nzrow, ii(1), nz
-    integer, allocatable :: cols(:)
-    PetscScalar, allocatable :: row_vals(:)
-    PetscScalar :: p_val
-    PetscReal :: weight
+      nrow, ncol, nzrow, ii(1), nz ! Loop indices, matrix dimensions, number of non-zero elements, and error code.
+    integer, allocatable :: cols(:) ! cols: Array to store column indices.
+    PetscScalar, allocatable :: row_vals(:) ! row_vals: Array to store row values.
+    PetscScalar :: p_val ! Temporary variable to store matrix values.
+    PetscReal :: weight ! Temporary variable to store weight.
       
+    ! Get matrix dimensions
     call MatGetSize(p_Dneq_dc, nrow, ncol, ierr)
     call MatGetOwnershipRange(p_Dneq_dc, nl1, nl2, ierr)
     
+    ! Allocate arrays
     allocate(cols(ncol), row_vals(ncol), stat = ierr)
     
+    ! Loop over rows
     do imu1 = 0, nmu_c - 1
       if ((imu1 .ge. nl1) .and. (imu1 .le. nl2 - 1)) then
+        ! Get row
         call MatGetRow(p_Dneq_dc, imu1, nzrow, cols, row_vals, ierr)
+        ! Loop over non-zero elements in the row
         do i1 = 1, nzrow
           imu2 = cols(i1)
 !~           write(0, fmt='(2i8, 2e24.12)') imu1, imu2, dc_weights(imu2 + 1, imu1 + 1)
 !~           row_vals(i1) = row_vals(i1) * dc_weights(imu2 + 1, (imu1 + 1))
+          ! Scale row values by weights
           if (((real(dc_weights(imu1), 8).lt.0d0).or.(real(dc_weights(imu2), 8).lt.0d0)).and.&
          &  ((abs((aimag(dc_weights(imu1)))).ge.1d-10).or.&
          &   (abs((aimag(dc_weights(imu2)))).ge.1d-10))) then
@@ -161,6 +185,7 @@ contains
         end do
         ii(1) = imu1
         nz = nzrow
+        ! Restore row and set values
         call MatRestoreRow(p_Dneq_dc, imu1, nz, PETSC_NULL_INTEGER, PETSC_NULL_SCALAR, ierr)        
         call MatSetValues(p_Dneq_dc, 1, ii, nzrow, cols, row_vals, INSERT_VALUES, ierr)
       end if
@@ -173,11 +198,13 @@ contains
   subroutine blockscale_mat(a, w, nat, imuecc)
     implicit none
 
-    complex(dp), intent(inout) :: a(:, :)
-    complex(dp), intent(in) :: w(:, :)
-    integer, intent(in) :: nat, imuecc(:)
-    integer :: imu1, imu2, iat1, iat2, i1, i2, j1, j2
+    ! Input/Output: Complex matrix a, input complex matrix w, number of atoms, and number of modes per atom
+    complex(dp), intent(inout) :: a(:, :) ! a: Matrix to be scaled.
+    complex(dp), intent(in) :: w(:, :) ! w: Weight matrix.
+    integer, intent(in) :: nat, imuecc(:) ! nat: Number of atoms. imuecc: Number of modes per atom.
+    integer :: imu1, imu2, iat1, iat2, i1, i2, j1, j2 ! Loop indices.
 
+    ! Scale matrix a by blocks using matrix w
     i2 = 1
     j2 = 1
     do iat2 = 1, nat
@@ -199,14 +226,15 @@ contains
     implicit none
 
 ! input,output:
-    real(dp) :: ra(:)
-    real(dp) :: rb(:, :)
+    real(dp) :: ra(:) ! ra: Array to be sorted.
+    real(dp) :: rb(:, :) ! rb: Matrix whose rows are sorted along with ra.
 ! local :
-    real(dp), allocatable :: rrb(:)
-    real(dp) :: rra
-    integer :: l, ir, n, j, i, m, minus
-    logical, optional :: reverse
+    real(dp), allocatable :: rrb(:) ! rrb: Temporary array.
+    real(dp) :: rra ! Temporary variable.
+    integer :: l, ir, n, j, i, m, minus ! Loop indices and other variables.
+    logical, optional :: reverse ! Optional logical variable to specify reverse sorting.
 
+    ! Heap sort algorithm for ra and rb
     minus = 1
     if (present(reverse)) then
       if (reverse) minus = -1
@@ -265,14 +293,18 @@ contains
 
     implicit none
 
-    integer :: integrator
-    integer :: nint_order, nlow
-    real(dp), allocatable :: xi(:), v1(:), v2(:)
+    ! Input: Integrator type and order, Output: quadrature rule
+    integer :: integrator ! integrator: Integer specifying the type of integrator.
+    integer :: nint_order, nlow ! nint_order: Order of integration. nlow: Number of lower order points.
+    real(dp), allocatable :: xi(:), v1(:), v2(:) ! xi: Quadrature points. v1, v2: Weights.
 
-    integer :: off, i, ierr
-    real(dp), allocatable :: x2(:), w1(:), w2(:), vdummy(:, :)
+    ! Local variables
+    integer :: off, i, ierr ! Loop index and error code.
+    real(dp), allocatable :: x2(:), w1(:), w2(:), vdummy(:, :) ! Temporary arrays.
 
+    ! Select quadrature rule based on integrator type
     if (integrator .eq. 1) then
+      ! Gauss-Kronrod quadrature
       if (mod(nint_order, 2) .eq. 0) nint_order = nint_order + 1
       nlow = (nint_order - 1)/2
       if (l_output_progress) then
@@ -299,6 +331,7 @@ contains
       v1(nlow + 1) = w1(nlow + 1)
       v2(nlow + 1) = w2(nlow + 1)
     else if (integrator .eq. 2) then
+      ! Clenshaw-Curtis quadrature
       if ((mod(nint_order, 2)) .eq. 0) nint_order = nint_order + 1
       nlow = (nint_order - 1)/2 + 1
       if (l_output_progress) then
@@ -323,7 +356,7 @@ contains
       end do
 
     else if (integrator .eq. 3) then
-
+      ! Newton-Cotes quadrature
       if (mod(nint_order, 2) .eq. 0) nint_order = nint_order + 1
       nlow = (nint_order)/2 + 1
       if (l_output_progress) then
@@ -378,10 +411,11 @@ contains
 
     implicit none
 
-    complex(dp) :: ii = dcmplx(0d0, 1d0)
-    complex(dp) :: fermi, e, x, ze
-    real(dp) :: t, kt, infinity
+    complex(dp) :: ii = dcmplx(0d0, 1d0) ! Imaginary unit
+    complex(dp) :: fermi, e, x, ze ! Fermi function and temporary variables
+    real(dp) :: t, kt, infinity ! Temperature, kt, and infinity
 
+    ! Fermi-Dirac distribution function
     kt = t*kb
     x = e/kt
 
@@ -401,10 +435,11 @@ contains
 
     implicit none
 
-    complex(dp) :: ii = dcmplx(0d0, 1d0)
-    complex(dp) :: bose, e, x, ze, b
-    real(dp) :: t, kt, infinity
+    complex(dp) :: ii = dcmplx(0d0, 1d0) ! Imaginary unit
+    complex(dp) :: bose, e, x, ze, b ! Bose function and temporary variables
+    real(dp) :: t, kt, infinity ! Temperature, kt, and infinity
 
+    ! Bose-Einstein distribution function
     kt = t*kb
     x = e/kt
 
@@ -422,9 +457,11 @@ contains
 
     implicit none
 
-    real(dp) :: x
-    complex(dp) :: contour
+    ! Input: x value, Output: complex contour value
+    real(dp) :: x ! x: Real variable.
+    complex(dp) :: contour ! contour: Complex variable representing the contour.
 
+    ! Contour function
     contour = cmplx(-cos(x), sin(x), 8)
     contour = r_eq*contour + e0
 
@@ -436,9 +473,11 @@ contains
 
     implicit none
 
-    real(dp) :: x
-    complex(dp) :: dcontour
+    ! Input: x value, Output: complex derivative of contour
+    real(dp) :: x ! x: Real variable.
+    complex(dp) :: dcontour ! dcontour: Complex variable representing the derivative of the contour.
 
+    ! Derivative of the contour function
     dcontour = r_eq*cmplx(-sin(x), -cos(x), 8)
 
   end function dcontour
@@ -449,9 +488,11 @@ contains
 
     implicit none
 
-    real(dp) :: x
-    complex(dp) :: contour_x
+    ! Input: x value, Output: complex contour value
+    real(dp) :: x ! x: Real variable.
+    complex(dp) :: contour_x ! contour_x: Complex variable representing the contour.
 
+    ! Contour function (alternative form)
     contour_x = x_low + dx_low*(1d0 - x)
 
   end function contour_x
@@ -462,9 +503,11 @@ contains
 
     implicit none
 
-    real(dp) :: x
-    complex(dp) :: dcontour_x
+    ! Input: x value, Output: complex derivative of contour
+    real(dp) :: x ! x: Real variable.
+    complex(dp) :: dcontour_x ! dcontour_x: Complex variable representing the derivative of the contour.
 
+    ! Derivative of the contour function (alternative form)
     dcontour_x = -dx_low
 
   end function dcontour_x
@@ -475,9 +518,11 @@ contains
 
     implicit none
 
-    real(dp) :: x
-    complex(dp) :: contour_y
+    ! Input: x value, Output: complex contour value
+    real(dp) :: x ! x: Real variable.
+    complex(dp) :: contour_y ! contour_y: Complex variable representing the contour.
 
+    ! Contour function (alternative form)
     contour_y = y_low + dy_low*x
 
   end function contour_y
@@ -488,9 +533,11 @@ contains
 
     implicit none
 
-    real(dp) :: x
-    complex(dp) :: dcontour_y
+    ! Input: x value, Output: complex derivative of contour
+    real(dp) :: x ! x: Real variable.
+    complex(dp) :: dcontour_y ! dcontour_y: Complex variable representing the derivative of the contour.
 
+    ! Derivative of the contour function (alternative form)
     dcontour_y = dy_low
 
   end function dcontour_y
@@ -502,12 +549,14 @@ contains
     use petsc_wrapper
     implicit none
 
-    Mat :: p_dmat
-    real(dp) :: mu
+    ! Input: PETSc matrix and chemical potential, Output: updated matrix
+    Mat :: p_dmat ! p_dmat: PETSc matrix.
+    real(dp) :: mu ! mu: Chemical potential.
 
-    complex(dp) :: z, fac
-    integer :: ifp, ierr
+    complex(dp) :: z, fac ! z: Complex variable. fac: Scaling factor.
+    integer :: ifp, ierr ! Loop index and error code.
 
+    ! Calculate Fermi pole contributions and add to the matrix
     call MatZeroEntries(p_dmat, ierr)
 
     do ifp = 0, n_fermipols
@@ -532,20 +581,22 @@ contains
 
     implicit none
 
-    real(dp) ::a, b, errout, errout2
-    real(dp), optional :: d1, d2
-    real(dp), allocatable :: x(:), w1(:), w2(:)
-    Mat :: p_zint, p_zint2
-    integer :: nhigh, nlow, ierr
-    integer, external :: f
+    ! Input: Function, integration limits, quadrature points and weights, matrixes, number of high and low order points, Output: results and error
+    real(dp) ::a, b, errout, errout2 ! a, b: Integration limits. errout, errout2: Errors.
+    real(dp), optional :: d1, d2 ! d1, d2: Optional subdivision points.
+    real(dp), allocatable :: x(:), w1(:), w2(:) ! x: Quadrature points. w1, w2: Weights.
+    Mat :: p_zint, p_zint2 ! p_zint, p_zint2: PETSc matrices to store integration results.
+    integer :: nhigh, nlow, ierr ! nhigh, nlow: Number of high and low order points. ierr: Error code.
+    integer, external :: f ! f: External function to be integrated.
 
-    Mat :: p_zintg, p_zintg2
-    integer :: i, n, j, i_low, i_high, i_max, k1, k2
-    real(dp) :: xx, norm, m1, m2, timing_local
-    integer(8) :: counti, count_rate, countf
+    ! Local variables
+    Mat :: p_zintg, p_zintg2 ! p_zintg, p_zintg2: Temporary PETSc matrices.
+    integer :: i, n, j, i_low, i_high, i_max, k1, k2 ! Loop indices.
+    real(dp) :: xx, norm, m1, m2, timing_local ! Temporary variables.
+    integer(8) :: counti, count_rate, countf ! Variables for timing.
+    PetscScalar, allocatable :: ws1(:), ws2(:) ! Temporary arrays.
 
-    PetscScalar, allocatable :: ws1(:), ws2(:)
-
+    ! Perform quadrature integration
     allocate (ws1(nhigh), ws2(nhigh))
 
     ws1 = w1*(b - a)*0.5d0

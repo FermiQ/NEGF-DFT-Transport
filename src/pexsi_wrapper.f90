@@ -6,12 +6,22 @@
 !~ If inv_sel is used for something else in the future, one has to keep this in mind.
 
 !~ PEXSI uses 1 indexing and PETSC 0 indexing !!!!
+
 module pexsi_wrapper
   implicit none
 
   contains
 
     subroutine inv_sel(p_A, p_Ainv)
+      ! Purpose: Computes the selected inverse of a matrix using the PEXSI library.
+      !          This routine takes a PETSc matrix as input, extracts its non-zero elements,
+      !          and uses PEXSI to compute the selected inverse. The result is then placed
+      !          back into a PETSc matrix.
+      !
+      ! Parameters:
+      !   p_A: (Input) PETSc matrix for which to compute the selected inverse.
+      !   p_Ainv: (Output) PETSc matrix to store the selected inverse.
+
 #include <petsc/finclude/petscmat.h>
       use petsc
       use kinds
@@ -145,6 +155,15 @@ module pexsi_wrapper
     end subroutine inv_sel
 
     subroutine multiplicative_partition(n, i1, i2)
+      ! Purpose: Finds the closest multiplicative partition of an integer n.
+      !          This subroutine finds two integers i1 and i2 such that their product
+      !          is n, and i1 is as close as possible to the square root of n.
+      !
+      ! Parameters:
+      !   n: (Input) The integer to be partitioned.
+      !   i1: (Output) The first factor of the partition.
+      !   i2: (Output) The second factor of the partition.
+
       implicit none
 
       integer :: n, i1 ,i2, i

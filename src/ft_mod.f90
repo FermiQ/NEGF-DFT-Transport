@@ -3,7 +3,21 @@ module ft_mod
 
 contains
 
-! transfrom y(k)=sum_ij exp(k*R_ij)*x(i,j)
+  ! Performs a 2D Fourier transform.
+  !
+  ! This subroutine calculates the 2D Fourier transform of a matrix x, storing the result in y.
+  ! The transform is defined as y(k) = sum_{i,j} exp(k * R_ij) * x(i,j), where R_ij is a vector
+  ! determined by the brav lattice vectors.
+  !
+  ! Parameters:
+  !   x (Mat, intent(inout)): The input matrix. Modified in place if same=1.
+  !   y (Mat, intent(inout)): The output vector containing the Fourier transform.
+  !   kp (real(dp), intent(in)): A matrix containing the k-vectors.
+  !   nk (integer, intent(in)): The number of k-vectors.
+  !   brav (real(dp), intent(in)): A matrix containing the lattice vectors.
+  !   maxi (integer, intent(in)): The maximum index i.
+  !   maxj (integer, intent(in)): The maximum index j.
+  !   same (integer, intent(in)): Flag indicating whether the nonzero pattern of y remains the same (1) or changes (0).
   subroutine fourier_trans(x, y, kp, nk, brav, maxi, maxj, same)
 #include <petsc/finclude/petsc.h>
     use petscmat
@@ -42,7 +56,20 @@ contains
 
   end subroutine fourier_trans
 
-! transfrom y(k)=sum_ij exp(k*R_ij)*x(i,j)
+  ! Performs a 2D Fourier transform for a single k-vector.
+  !
+  ! This subroutine is similar to fourier_trans, but it only calculates the transform for a single
+  ! k-vector specified by iik.
+  !
+  ! Parameters:
+  !   x (Mat, intent(inout)): The input matrix.
+  !   y (Mat, intent(inout)): The output vector containing the Fourier transform.
+  !   kp (real(dp), intent(in)): A matrix containing the k-vectors.
+  !   iik (integer, intent(in)): The index of the k-vector to use.
+  !   brav (real(dp), intent(in)): A matrix containing the lattice vectors.
+  !   maxi (integer, intent(in)): The maximum index i.
+  !   maxj (integer, intent(in)): The maximum index j.
+  !   same (integer, intent(in)): Flag indicating whether the nonzero pattern of y remains the same (1) or changes (0).
   subroutine fourier_trans_ik(x, y, kp, iik, brav, maxi, maxj, same)
 #include <petsc/finclude/petsc.h>
     use petscmat
@@ -81,6 +108,21 @@ contains
   end subroutine fourier_trans_ik
 
 
+  ! Performs a 3D Fourier transform for a single k-vector.
+  !
+  ! This subroutine performs a 3D Fourier transform similar to fourier_trans_ik, but for a 3D input matrix.
+  ! It uses a pointer to handle the input matrix for efficient memory management.
+  !
+  ! Parameters:
+  !   x_in (type(Mat_pointer_array), intent(in)): The input 3D matrix.
+  !   y (Mat, intent(inout)): The output vector containing the Fourier transform.
+  !   kp (real(dp), intent(in)): A matrix containing the k-vectors.
+  !   iik (integer, intent(in)): The index of the k-vector to use.
+  !   brav (real(dp), intent(in)): A matrix containing the lattice vectors.
+  !   maxi (integer, intent(in)): The maximum index i.
+  !   maxj (integer, intent(in)): The maximum index j.
+  !   maxk (integer, intent(in)): The maximum index k.
+  !   same (integer, intent(in)): Flag indicating whether the nonzero pattern of y remains the same (1) or changes (0).
   subroutine fourier3d_trans_ik(x_in, y, kp, iik, brav, maxi, maxj, maxk, same)
 #include <petsc/finclude/petsc.h>
     use petscmat
@@ -129,61 +171,23 @@ contains
 
   end subroutine fourier3d_trans_ik
 
-!~ ! transfrom y(i,j)=sum_k exp(k*R_ij)*x(k)
-!~     subroutine fourier_back(x,y,kp,wkp,nk,brav,maxi,maxj,same)
-!~ #include <slepc/finclude/slepceps.h>
-!~       use slepceps
-!~       use slepc_mod
-!~       use petsc_mod
-!~       use kinds
-!~       use blas95
-!~       implicit none
-
-!~       Mat, allocatable, intent(inout) :: x(:)
-!~       Mat, allocatable, intent(inout) :: y(:,:)
-!~       real(dp) :: kp(:,:),brav(3,3)
-!~       integer :: wkp(:),maxi,maxj,same
-
-!~       real(dp) :: phi,r(2)
-!~       integer :: i1,i2,ik,nk,ierr
-!~       PetscScalar :: phase
-
-!~       do i2=-maxj,maxj
-!~         do i1=-maxi,maxi
-!~           call MatZeroEntries(y(i1,i2),ierr)
-!~         end do
-!~       end do
-
-!~       do ik=1,nk
-!~         do i2=-maxj,maxj
-!~           do i1=-maxi,maxi
-!~             r=real(i1,8)*brav(1:2,1)+real(i2,8)*brav(1:2,2)
-!~             phi=dot(r,kp(1:2,ik))
-!~             phase=zexp(cmplx(0,-phi,8))
-!~             if (same.eq.0) then
-!~               call  MatAXPY(y(i1,i2),phase,x(ik),DIFFERENT_NONZERO_PATTERN,ierr)
-!~               if (wkp(ik).eq.2) then
-!~                 call MatTranspose(x(ik),MAT_INPLACE_MATRIX,x(ik),ierr)
-!~                 phase=-phase
-!~                 call  MatAXPY(y(i1,i2),phase,x(ik),DIFFERENT_NONZERO_PATTERN,ierr)
-!~               end if
-!~             else
-!~               call  MatAXPY(y(i1,i2),phase,x(ik),SAME_NONZERO_PATTERN,ierr)
-!~               if (wkp(ik).eq.2) then
-!~                 call MatTranspose(x(ik),MAT_INPLACE_MATRIX,x(ik),ierr)
-!~                 phase=-phase
-!~                 call  MatAXPY(y(i1,i2),phase,x(ik),SAME_NONZERO_PATTERN,ierr)
-!~               end if
-!~             end if
-!~           end do
-!~         end do
-!~       end do
-
-!~     end subroutine fourier_back
-
-! transfrom y(i,j)=sum_k exp(k*R_ij)*x(k)
-! no y=0 on entry
-! input matrices are changed to x->x^T if wkp.eq.2
+  ! Performs a 2D inverse Fourier transform and adds the result to y.
+  !
+  ! This subroutine calculates the 2D inverse Fourier transform of x and adds it to the matrix y.
+  ! The transform is defined as y(i,j) += sum_k exp(k * R_ij) * x(k).  The input matrices x are
+  ! transposed in place if wkp(ik) == 2.
+  !
+  ! Parameters:
+  !   x (Mat, allocatable, intent(inout)): The input vector.  Modified in place if wkp(ik) == 2.
+  !   y (Mat, intent(inout)): The output matrix.  The result is added to the existing values in y.
+  !   kp (real(dp), intent(in)): A matrix containing the k-vectors.
+  !   wkp (integer, intent(in)): An array indicating whether to transpose the input matrices.
+  !   nk (integer, intent(in)): The number of k-vectors.
+  !   brav (real(dp), intent(in)): A matrix containing the lattice vectors.
+  !   maxi (integer, intent(in)): The maximum index i.
+  !   maxj (integer, intent(in)): The maximum index j.
+  !   ri (integer, intent(in)): Flag to control the rotation of imaginary and real parts.
+  !   same (integer, intent(in)): Flag indicating whether the nonzero pattern of y remains the same (1) or changes (0).
   subroutine fourier_back_add(x, y, kp, wkp, nk, brav, maxi, maxj, ri, same)
 #include <petsc/finclude/petsc.h>
     use petscmat
@@ -238,7 +242,19 @@ contains
 
   end subroutine fourier_back_add
   
-!~ takes fortran arrays (1D) from each process and do the FT on each process independently  
+  ! Performs a 2D inverse Fourier transform on arrays, adding the result.  This version operates on
+  ! 1D arrays, performing the transform independently on each process.
+  !
+  ! Parameters:
+  !   x (complex(dp), intent(in)): Input complex array.
+  !   y (complex(dp), intent(inout)): Output complex array. The result is added to the existing values.
+  !   kp (real(dp), intent(in)): K-vectors.
+  !   wkp (integer, intent(in)): Flags for matrix transposition.
+  !   nk (integer, intent(in)): Number of k-vectors.
+  !   brav (real(dp), intent(in)): Lattice vectors.
+  !   maxi (integer, intent(in)): Maximum index i.
+  !   maxj (integer, intent(in)): Maximum index j.
+  !   ri (integer, intent(in)): Flag for real/imaginary rotation.
   subroutine fourier_back_add_array(x, y, kp, wkp, nk, brav, maxi, maxj, ri)
 #include <petsc/finclude/petsc.h>
     use petscmat
@@ -282,6 +298,24 @@ contains
 
   end subroutine fourier_back_add_array
 
+  ! Performs a 3D inverse Fourier transform and adds the result to y.
+  !
+  ! This subroutine is similar to fourier_back_add but performs a 3D inverse Fourier transform.  It uses
+  ! pointers for efficient memory management and handles optional input for nonzero pattern updates.
+  !
+  ! Parameters:
+  !   x (Mat, allocatable, intent(in)): Input vector.
+  !   y_in (Mat, target, contiguous, intent(inout)): Output 3D matrix.  The result is added to the existing values.
+  !   kp (real(dp), intent(in)): K-vectors.
+  !   wkp (integer, intent(in)): Flags for matrix transposition.
+  !   nk (integer, intent(in)): Number of k-vectors.
+  !   brav (real(dp), intent(in)): Lattice vectors.
+  !   maxi (integer, intent(in)): Maximum index i.
+  !   maxj (integer, intent(in)): Maximum index j.
+  !   maxk (integer, intent(in)): Maximum index k.
+  !   ri (integer, intent(in)): Flag for real/imaginary rotation.
+  !   same (integer, intent(in)): Flag indicating whether the nonzero pattern of y remains the same (1) or changes (0).
+  !   lnewnz_in (logical, optional, intent(in)): Flag indicating whether to update the nonzero pattern.
   subroutine fourier3d_back_add(x, y_in, kp, wkp, nk, brav, maxi, maxj, maxk, ri, &
    same, lnewnz_in)
 #include <petsc/finclude/petsc.h>

@@ -2,9 +2,29 @@ module integrator_scalar
   use kinds
   implicit none
 
+  ! zint_scalar_output: A complex variable of double precision type.  Its purpose is not explicitly defined in this snippet, but it likely stores the result of a scalar integration.
+
   complex(dp) :: zint_scalar_output
 
 contains
+
+  ! subroutine evalqr_scalar: This subroutine evaluates a quadrature rule for scalar integration.
+  !
+  ! Args:
+  !   f: An integer, external function representing the integrand.  It takes a single real(dp) argument (x) and returns a complex(dp) value.
+  !   a: A real(dp) variable representing the lower limit of integration.
+  !   b: A real(dp) variable representing the upper limit of integration.
+  !   x: A real(dp) allocatable array containing the quadrature nodes.
+  !   w1: A real(dp) allocatable array containing the weights for the primary quadrature rule.
+  !   w2: A real(dp) allocatable array containing the weights for a secondary quadrature rule (likely for error estimation).
+  !   p_zint: A complex(dp) variable that will store the result of the primary quadrature rule.
+  !   p_zint2: A complex(dp) variable that will store the result of the secondary quadrature rule.
+  !   nhigh: An integer representing the number of high-order quadrature points.
+  !   nlow: An integer representing the number of low-order quadrature points (if used).
+  !   errout: A real(dp) variable that will store the absolute error of the primary quadrature rule.
+  !   errout2: A real(dp) variable that will store the absolute error of the secondary quadrature rule.
+  !   d1: An optional real(dp) variable. If present, it will store the first subdivision point.
+  !   d2: An optional real(dp) variable. If present, it will store the second subdivision point.
 
   subroutine evalqr_scalar(f, a, b, x, w1, w2, p_zint, p_zint2, nhigh, nlow, errout, errout2, d1, d2)
     use petsc_mod
@@ -72,6 +92,18 @@ contains
     d2 = a + (b - a)*2d0/3d0
 
   end subroutine evalqr_scalar
+
+  ! subroutine adaptive_int3_scalar: This subroutine performs adaptive integration using a 3-point quadrature rule.
+  !
+  ! Args:
+  !   f: An integer, external function representing the integrand.  It takes a single real(dp) argument (x) and returns a complex(dp) value.
+  !   a: A real(dp) variable representing the lower limit of integration.
+  !   b: A real(dp) variable representing the upper limit of integration.
+  !   p_zint1: A complex(dp) variable that will store the result of the integration.
+  !   p_zint2: A complex(dp) variable (its purpose is not entirely clear from this snippet).
+  !   nsub: An integer representing the maximum number of subintervals allowed.
+  !   eps: A real(dp) variable representing the desired accuracy (tolerance).
+  !   abserr: A real(dp) variable that will store the absolute error of the integration.
 
   subroutine adaptive_int3_scalar(f, a, b, p_zint1, p_zint2, nsub, eps, abserr)
     use petsc_mod

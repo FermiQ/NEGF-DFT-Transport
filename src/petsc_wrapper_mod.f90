@@ -5,6 +5,12 @@ module petsc_wrapper
 contains
 
   subroutine petsc_matassemble(a)
+    ! Purpose: Assemble the given PETSc matrix.
+    !
+    ! Parameters:
+    !   a: The PETSc matrix to assemble (input/output).
+
+    ! Include necessary PETSc header file
 #include <petsc/finclude/petscmat.h>
     use petscmat
     implicit none
@@ -12,18 +18,24 @@ contains
     Mat :: a
     integer :: ierr
 
+    ! Begin and end the matrix assembly process.  MAT_FINAL_ASSEMBLY indicates that no more
+    ! insertions will be made to the matrix.
     call MatAssemblyBegin(a, MAT_FINAL_ASSEMBLY, ierr)
     call MatAssemblyEnd(a, MAT_FINAL_ASSEMBLY, ierr)
 
   end subroutine petsc_matassemble
 
-!~   subroutine petsc_matmatconj_restricted(A,B,C)
-!~ C=A*B' that is we multiply row_A*conjg(row_B)
-!~ C can probably take the petsc options offproc values disable
   subroutine petsc_matmatconj_restricted(A, B, C)
+    ! Purpose: Compute the matrix-matrix product C = A * B', where B' is the conjugate transpose of B.
+    !          This routine handles distributed matrices and incorporates error handling.
+    !
+    ! Parameters:
+    !   A: The first input PETSc matrix (input).
+    !   B: The second input PETSc matrix (input).
+    !   C: The resulting PETSc matrix (output).
+
 #include <petsc/finclude/petscmat.h>
     use petscmat
-!~    use mpi
     use petsc_mod
     use globals, only: inode, nprocs
     use kinds
@@ -31,7 +43,6 @@ contains
     implicit none
 
     Mat :: A, B, C, D
-
     Mat :: Arow(0:nprocs - 1), Brow(0:nprocs - 1)
     PetscScalar, pointer :: p_array_B(:, :), p_array_A(:, :)
     PetscScalar, allocatable :: x_row_B(:)
@@ -43,68 +54,80 @@ contains
     integer, allocatable ::C_cols(:)
     PetscErrorCode :: p_ierr
 
+    ! Get the dimensions of the input matrices
     call MatGetSize(A, nrow_A, ncol_A, ierr)
     call MatGetSize(B, nrow_B, ncol_B, ierr)
     call MatGetSize(C, nrow_C, ncol_C, ierr)
 
+    ! Get the local row ranges of the matrices
     call MatGetOwnershipRange(B, nrow1_local_B, nrow2_local_B, ierr)
     call MatGetOwnershipRange(A, nrow1_local_A, nrow2_local_A, ierr)
     call MatGetOwnershipRange(C, nrow1_local_C, nrow2_local_C, ierr)
 
+    ! Set option to handle off-processor entries
     call MatSetOption(C, MAT_IGNORE_OFF_PROC_ENTRIES, PETSC_FALSE, ierr)
 
+    ! Allocate memory
     allocate (x_row_B(ncol_B), C_cols(ncol_C), stat=ierr)
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "allocation error ", ierr
       call error()
     end if
 
+    ! Get pointers to the matrix data
     call MatDenseGetArrayF90(B, p_array_B, p_ierr)
     call MatDenseGetArrayF90(A, p_array_A, p_ierr)
 
+    ! Iterate over rows of B
     do irow = 0, nrow_B - 1
       iroot = -1
 
+      ! Determine the root process for broadcasting
       if ((irow .ge. nrow1_local_B) .and. (irow .lt. nrow2_local_B)) then
         x_row_B(1:ncol_B) = p_array_B(irow - nrow1_local_B + 1, 1:ncol_B)
         iroot = inode
       end if
-      call MPI_AllReduce(MPI_IN_PLACE, iroot, 1, MPI_INTEGER, MPI_MAX, PETSC_COMM_WORLD, ierr)  ! is this actually a clever way to distribute iroot? looks stupid.
+      call MPI_AllReduce(MPI_IN_PLACE, iroot, 1, MPI_INTEGER, MPI_MAX, PETSC_COMM_WORLD, ierr)
       call MPI_Bcast(x_row_B, ncol_B, MPI_DOUBLE_COMPLEX, iroot, PETSC_COMM_WORLD, ierr)
 
+      ! Get row information from C
       iroot = -1
       nzcols_C = -1
       if ((irow .ge. nrow1_local_C) .and. (irow .lt. nrow2_local_C)) then
         call MatGetRow(C, irow, nzcols_C, C_cols, PETSC_NULL_SCALAR, p_ierr)
         iroot = inode
       end if
-      call MPI_AllReduce(MPI_IN_PLACE, iroot, 1, MPI_INTEGER, MPI_MAX, PETSC_COMM_WORLD, ierr)  ! is this actually a clever way to distribute iroot? looks stupid.
+      call MPI_AllReduce(MPI_IN_PLACE, iroot, 1, MPI_INTEGER, MPI_MAX, PETSC_COMM_WORLD, ierr)
       call MPI_Bcast(C_cols, ncol_C, MPI_INTEGER, iroot, PETSC_COMM_WORLD, ierr)
       call MPI_Bcast(nzcols_C, 1, MPI_INTEGER, iroot, PETSC_COMM_WORLD, ierr)
 
       ir = irow
 
+      ! Compute and set values in C
       do icol = 1, nzcols_C
         jcol = C_cols(icol)
         if ((jcol .ge. nrow1_local_A) .and. (jcol .lt. nrow2_local_A)) then
           ic = jcol
-!~           x(1)=dotc(x_row_B,p_array_A(jcol-nrow1_local_A+1,1:ncol_B))
           x(1) = dot_product(x_row_B, p_array_A(jcol - nrow1_local_A + 1, 1:ncol_B))
           call MatSetValues(C, 1, ic, 1, ir, x, INSERT_VALUES, ierr)
         end if
       end do
 
+      ! Assemble the matrix C
       call MatAssemblyBegin(C, MAT_FINAL_ASSEMBLY, ierr)
       call MatAssemblyEnd(C, MAT_FINAL_ASSEMBLY, ierr)
 
+      ! Restore row of C if necessary
       if ((irow .ge. nrow1_local_C) .and. (irow .lt. nrow2_local_C)) &
      &call MatRestoreRow(C, irow, nzcols_C, C_cols, PETSC_NULL_SCALAR, p_ierr)
 
     end do
 
+    ! Restore arrays
     call MatDenseRestoreArrayF90(B, p_array_B, p_ierr)
     call MatDenseRestoreArrayF90(A, p_array_A, p_ierr)
 
+    ! Deallocate memory
     deallocate (x_row_B, C_cols, stat=ierr)
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "deallocation error ", ierr
@@ -117,6 +140,13 @@ contains
   end subroutine petsc_matmatconj_restricted
 
   subroutine petsc_lu_fac(A, F, matsolvtype)
+    ! Purpose: Perform LU factorization of a PETSc matrix.
+    !
+    ! Parameters:
+    !   A: The input PETSc matrix (input).
+    !   F: The resulting factored PETSc matrix (output).
+    !   matsolvtype: The type of matrix solver to use.
+
 #include <petsc/finclude/petscmat.h>
     use petscmat
     implicit none
@@ -129,20 +159,25 @@ contains
     PetscErrorCode :: p_ierr
     MatFactorInfo :: matfacinfo(MAT_FACTORINFO_SIZE)
 
-!~     call MatGetOrdering(A,MATORDERINGNATURAL,isrow,iscol,ierr)
+    ! Get the LU factor of matrix A
     call MatGetFactor(A, matsolvtype, MAT_FACTOR_LU, f, ierr)
     call MatFactorInfoInitialize(matfacinfo, p_ierr)
 
+    ! Perform symbolic and numeric LU factorization
     call MatLUFactorSymbolic(F, A, PETSC_NULL_IS, PETSC_NULL_IS, matfacinfo, p_ierr)
-!~     call MatLUFactorSymbolic(F,A,isrow,iscol,matfacinfo,p_ierr)
     call MatLUFactorNumeric(F, A, matfacinfo, p_ierr)
-
-!~     call ISDestroy(isrow,ierr)
-!~     call ISDestroy(iscol,ierr)
 
   end subroutine petsc_lu_fac
 
   subroutine petsc_ksp_lu_fac(ksp, A, F, comm)
+    ! Purpose: Set up a Krylov subspace method (KSP) with a preconditioned LU factorization.
+    !
+    ! Parameters:
+    !   ksp: The KSP context (output).
+    !   A: The input PETSc matrix (input).
+    !   F: The resulting factored PETSc matrix (output).
+    !   comm: The MPI communicator (input).
+
 #include <petsc/finclude/petsc.h>
     use petsc
     implicit none
@@ -154,34 +189,37 @@ contains
     PC :: pc
     integer :: ierr
 
-
-
+    ! Create and set up the KSP context
     call KSPCreate(comm, ksp, ierr)
     call KSPSetOperators(ksp, A, A, ierr)
     call KSPSetType(ksp, KSPPREONLY, ierr)
     call KSPGetPC(ksp, pc, ierr)
 
+    ! Set up the preconditioner
     call PCSetType(pc, PCLU, ierr)
     call PCSetFromOptions(pc, ierr)
     call PCSetUp(pc, ierr)
 
+    ! Set options and set up the KSP
     call KSPSetFromOptions(ksp, ierr)
     call KSPSetUp(ksp, ierr)
 
-
+    ! Get the factored matrix
     call PCFactorSetUpMatSolverType(pc, ierr)
     call PCFactorGetMatrix(pc, F, ierr)
 
   end subroutine petsc_ksp_lu_fac
 
-
-!~  reduce the number of simultanious RHS to nsim to avoid problems with SuperLU_dist
-!~  and in the future for possibly very large matrices.
-!~  basically using the pointer to the array (part) of the full matrix (MatDenseGetArrayF90 )
-!~  and use the pointer as storage for the reduced matrix MatDensePlaceArray).
-!~  This avoids creating and allocating memory as well as copying between matrices, this
-!~  should only introduce negligible overhead.
   subroutine petsc_solve_cols(A, B, X, nsim_in, matsolvertype)
+    ! Purpose: Solve a linear system AX = B using LU factorization, handling multiple right-hand sides efficiently.
+    !
+    ! Parameters:
+    !   A: The coefficient matrix (input).
+    !   B: The right-hand side matrix (input).
+    !   X: The solution matrix (output).
+    !   nsim_in: The maximum number of simultaneous right-hand sides to process.
+    !   matsolvertype: The type of matrix solver to use.
+
 #include <petsc/finclude/petsc.h>
     use petsc
     use petsc_mod
@@ -207,47 +245,50 @@ contains
 
     integer(8) :: counti, count_rate, countf
 
-
+    ! Set options for the solution matrix X
     call MatSetOption(X, MAT_NEW_NONZERO_LOCATIONS, PETSC_FALSE, ierr)
-!~ I think this option is save to use as the temporary XX, BB have the same
-!~ row distribution as X, B
     call MatSetOption(X, MAT_IGNORE_OFF_PROC_ENTRIES, PETSC_FALSE, ierr)
 
+    ! Create and set up the KSP context
     call KSPCreate(PETSC_COMM_WORLD, ksp, ierr)
     call KSPSetOperators(ksp, A, A, ierr)
     call KSPSetType(ksp, KSPPREONLY, ierr)
     call KSPGetPC(ksp, pc, ierr)
 
+    ! Set up the preconditioner
     call PCSetType(pc, PCLU, ierr)
     call PCSetFromOptions(pc, ierr)
     call PCSetUp(pc, ierr)
 
+    ! Set options and set up the KSP
     call KSPSetFromOptions(ksp, ierr)
     call KSPSetUp(ksp, ierr)
 
+    ! Get the factored matrix
     call PCFactorSetUpMatSolverType(pc, ierr)
     call PCFactorGetMatrix(pc, F, ierr)
 
-
+    ! Get the size of the right-hand side matrix B
     call MatGetSize(B, nrow, ncol, ierr)
     nsim = min(ncol, nsim_in)
 
-
+    ! Get the local row range of B
     call MatGetOwnershipRange(B, nrow_loc1, nrow_loc2, ierr)
     nrow_loc = nrow_loc2 - nrow_loc1
 
+    ! Allocate memory for local row indices
     allocate(irows_loc(nrow_loc), stat = ierr)
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "allocation error ", ierr
       call error()
     end if
 
-!~ I wonder if there is an easier way than to use this with MatSetValues
+    ! Set up local row indices
     do i = 1,nrow_loc
       irows_loc(i) = nrow_loc1 + i - 1
     end do
 
-
+    ! Create dense matrices for temporary storage
     call MatCreateDense(PETSC_COMM_WORLD, nrow_loc, PETSC_DECIDE, PETSC_DECIDE, nsim, &
       PETSC_NULL_SCALAR, XX, ierr)
     call MatDenseGetArrayF90(XX, p_xx, ierr)
@@ -256,13 +297,13 @@ contains
     call MatCreateDense(PETSC_COMM_WORLD, nrow_loc, PETSC_DECIDE, PETSC_DECIDE, nsim, &
       p_bb(1:nrow_loc, 1:nsim), BB, ierr)
 
+    ! Determine the number of runs and remaining columns
     nruns = ncol / nsim
     nrest = ncol - nruns * nsim
 
-
+    ! Solve the linear system in batches
     call system_clock(counti, count_rate)
     do irun = 0, nruns - 1
-!~       call system_clock(counti, count_rate)
       ioff = 1 + nsim * irun
       call MatDensePlaceArray(BB, p_bb(1, ioff), ierr)
       call MatMatSolve(F, BB, XX, ierr)
@@ -274,27 +315,21 @@ contains
       call MatDenseResetArray(BB, ierr)
 
       do i = 1, nsim
-        icol = ioff + i - 2  ! -1 as ioff starts at 1 and -1 for 1 index to 0 index
+        icol = ioff + i - 2
         call MatSetValues(X, nrow_loc, irows_loc, 1, icol , p_xx(1:nrow_loc, i), &
           INSERT_VALUES, ierr)
       end do
-      call MatAssemblyBegin(X, MAT_FINAL_ASSEMBLY, ierr) ! I think the values are cached.
-      call MatAssemblyEnd(X, MAT_FINAL_ASSEMBLY, ierr)
+      call MatAssemblyBegin(X, MAT_FINAL_ASSEMBLY, ierr)
+    call MatAssemblyEnd(X, MAT_FINAL_ASSEMBLY, ierr)
 
-!~       call system_clock(countf)
-!~       write (pstr_out, fmt='(A,i8,e24.12)') "test ",nruns,real(countf - counti, 8)/real(count_rate, 8)
-!~       call petsc_print_master()
     end do
 
-
+    ! Restore arrays and deallocate memory
     call MatDenseRestoreArrayF90(XX, p_xx, ierr)
     call MatDenseRestoreArrayF90(B, p_bb, ierr)
 
-
-
-
+    ! Handle remaining columns if necessary
     if (nrest .gt. 0) then
-
       ioff = 1 + nsim * nruns
 
       if ( (ioff + nrest - 1) .ne. (ncol) ) then
@@ -304,6 +339,7 @@ contains
 
       call KSPDestroy(ksp,ierr)
 
+      ! Recreate and set up KSP context
       call KSPCreate(PETSC_COMM_WORLD, ksp, ierr)
       call KSPSetOperators(ksp, A, A, ierr)
       call KSPSetType(ksp, KSPPREONLY, ierr)
@@ -322,7 +358,7 @@ contains
       call MatDestroy(BB, ierr)
       call MatDestroy(XX, ierr)
 
-
+      ! Create dense matrices for temporary storage
       call MatCreateDense(PETSC_COMM_WORLD, nrow_loc, PETSC_DECIDE, PETSC_DECIDE, nrest, &
         PETSC_NULL_SCALAR, XX, ierr)
       call MatDenseGetArrayF90(XX, p_xx, ierr)
@@ -337,7 +373,7 @@ contains
         call error()
       end if
       do i = 1, nrest
-        icol = ioff + i - 2  ! -1 as ioff starts at 1 and -1 for 1 index to 0 index
+        icol = ioff + i - 2
         call MatSetValues(X, nrow_loc, irows_loc, 1, icol , p_xx(1:nrow_loc, i), &
         INSERT_VALUES, ierr)
       end do
@@ -349,12 +385,11 @@ contains
 
     end if
 
-
-
-
+    ! Record timing information
     call system_clock(countf)
     timing_matmat_solve(1) = timing_matmat_solve(1) + real(countf - counti, 8)/real(count_rate, 8)
 
+    ! Destroy temporary matrices and KSP context
     call MatDestroy(BB, ierr)
     call MatDestroy(XX, ierr)
 
@@ -363,6 +398,15 @@ contains
   end subroutine petsc_solve_cols
 
   subroutine petsc_solve_cols_sparse_input(A, B, X, nsim_in, matsolvertype)
+    ! Purpose: Solve a linear system AX = B using LU factorization, handling multiple right-hand sides efficiently.  This version assumes a sparse input matrix B.
+    !
+    ! Parameters:
+    !   A: The coefficient matrix (input).
+    !   B: The right-hand side matrix (input).
+    !   X: The solution matrix (output).
+    !   nsim_in: The maximum number of simultaneous right-hand sides to process.
+    !   matsolvertype: The type of matrix solver to use.
+
 #include <petsc/finclude/petsc.h>
     use petsc
     use petsc_mod
@@ -388,43 +432,45 @@ contains
 
     integer(8) :: counti, count_rate, countf
 
-
+    ! Set options for the solution matrix X
     call MatSetOption(X, MAT_NEW_NONZERO_LOCATIONS, PETSC_FALSE, ierr)
-!~ I think this option is save to use as the temporary XX, BB have the same
-!~ row distribution as X, B
     call MatSetOption(X, MAT_IGNORE_OFF_PROC_ENTRIES, PETSC_TRUE, ierr)
 
+    ! Create and set up the KSP context
     call KSPCreate(PETSC_COMM_WORLD, ksp, ierr)
     call KSPSetOperators(ksp, A, A, ierr)
     call KSPSetType(ksp, KSPPREONLY, ierr)
     call KSPGetPC(ksp, pc, ierr)
 
+    ! Set up the preconditioner
     call PCSetType(pc, PCLU, ierr)
     call PCSetFromOptions(pc, ierr)
     call PCSetUp(pc, ierr)
 
+    ! Set options and set up the KSP
     call KSPSetFromOptions(ksp, ierr)
     call KSPSetUp(ksp, ierr)
 
-
+    ! Get the factored matrix
     call PCFactorSetUpMatSolverType(pc, ierr)
     call PCFactorGetMatrix(pc, F, ierr)
 
-
+    ! Get the size of the right-hand side matrix B
     call MatGetSize(B, nrow, ncol, ierr)
     nsim = min(ncol, nsim_in)
 
-
+    ! Get the local row range of B
     call MatGetOwnershipRange(B, nrow_loc1, nrow_loc2, ierr)
     nrow_loc = nrow_loc2 - nrow_loc1
 
+    ! Allocate memory for local row and column indices
     allocate(irows_loc(nrow_loc), icols_sim(nsim), icols_off(nsim), stat = ierr)
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "allocation error ", ierr
       call error()
     end if
 
-!~ I wonder if there is an easier way than to use this with MatSetValues
+    ! Set up local row indices
     do i = 1,nrow_loc
       irows_loc(i) = nrow_loc1 + i - 1
     end do
@@ -432,7 +478,7 @@ contains
       icols_sim(i) = i - 1
     end do
 
-
+    ! Create dense matrices for temporary storage
     call MatCreateDense(PETSC_COMM_WORLD, nrow_loc, PETSC_DECIDE, PETSC_DECIDE, nsim, &
       PETSC_NULL_SCALAR, XX, ierr)
     call MatDenseGetArrayF90(XX, p_xx, ierr)
@@ -441,20 +487,19 @@ contains
       PETSC_NULL_SCALAR, BB, ierr)
     call MatDenseGetArrayF90(BB, p_bb, ierr)
 
-
-    call MatAssemblyBegin(BB, MAT_FINAL_ASSEMBLY, ierr) ! I think the values are cached.
+    call MatAssemblyBegin(BB, MAT_FINAL_ASSEMBLY, ierr)
     call MatAssemblyEnd(BB, MAT_FINAL_ASSEMBLY, ierr)
 
-
+    ! Determine the number of runs and remaining columns
     nruns = ncol / nsim
     nrest = ncol - nruns * nsim
 
-
+    ! Solve the linear system in batches
     call system_clock(counti, count_rate)
     do irun = 0, nruns - 1
-!~       call system_clock(counti, count_rate)
       ioff = nsim * irun
 
+      ! Get values from B
       do i = 1, nsim
         icol = ioff + i - 1
         call MatGetValues(B, nrow_loc, irows_loc, 1, icol, p_bb(1:nrow_loc,i), ierr)
@@ -465,28 +510,24 @@ contains
         call error()
       end if
 
+      ! Set values in X
       do i = 1, nsim
         icol = ioff + i - 1
         call MatSetValues(X, nrow_loc, irows_loc, 1, icol , p_xx(1:nrow_loc,i), &
           INSERT_VALUES, ierr)
       end do
 
-      call MatAssemblyBegin(X, MAT_FLUSH_ASSEMBLY, ierr) ! I think the values are cached.
+      call MatAssemblyBegin(X, MAT_FLUSH_ASSEMBLY, ierr)
       call MatAssemblyEnd(X, MAT_FLUSH_ASSEMBLY, ierr)
 
-!~       call system_clock(countf)
-!~       write (pstr_out, fmt='(A,2i8,e24.12)') "test ",nruns,irun,real(countf - counti, 8)/real(count_rate, 8)
-!~       call petsc_print_master()
     end do
 
+    ! Restore arrays and deallocate memory
     call MatDenseRestoreArrayF90(XX, p_xx, ierr)
     call MatDenseRestoreArrayF90(BB, p_bb, ierr)
 
-
-
-
+    ! Handle remaining columns if necessary
     if (nrest .gt. 0) then
-
       ioff = nsim * nruns
 
       if ( (ioff + nrest ) .ne. (ncol) ) then
@@ -496,6 +537,7 @@ contains
 
       call KSPDestroy(ksp,ierr)
 
+      ! Recreate and set up KSP context
       call KSPCreate(PETSC_COMM_WORLD, ksp, ierr)
       call KSPSetOperators(ksp, A, A, ierr)
       call KSPSetType(ksp, KSPPREONLY, ierr)
@@ -514,7 +556,7 @@ contains
       call MatDestroy(BB, ierr)
       call MatDestroy(XX, ierr)
 
-
+      ! Create dense matrices for temporary storage
       call MatCreateDense(PETSC_COMM_WORLD, nrow_loc, PETSC_DECIDE, PETSC_DECIDE, nrest, &
         PETSC_NULL_SCALAR, XX, ierr)
       call MatDenseGetArrayF90(XX, p_xx, ierr)
@@ -525,13 +567,11 @@ contains
       call MatAssemblyBegin(BB, MAT_FINAL_ASSEMBLY, ierr)
       call MatAssemblyEnd(BB, MAT_FINAL_ASSEMBLY, ierr)
 
-
+      ! Get values from B
       do i = 1, nrest
         icol = ioff + i - 1
         call MatGetValues(B, nrow_loc, irows_loc, 1, icol, p_bb(1:nrow_loc,i), ierr)
       end do
-
-
 
       call MatMatSolve(F, BB, XX, ierr)
       if (ierr.ne.0)  then
@@ -539,7 +579,7 @@ contains
         call error()
       end if
       do i = 1, nrest
-        icol = ioff + i - 1  ! -1 for 1 index to 0 index
+        icol = ioff + i - 1
         call MatSetValues(X, nrow_loc, irows_loc, 1, icol , p_xx(1:nrow_loc, i), &
         INSERT_VALUES, ierr)
       end do
@@ -551,28 +591,28 @@ contains
 
     end if
 
-
-
-
+    ! Record timing information
     call system_clock(countf)
     timing_matmat_solve(1) = timing_matmat_solve(1) + real(countf - counti, 8)/real(count_rate, 8)
 
+    ! Destroy temporary matrices and KSP context
     call MatDestroy(BB, ierr)
     call MatDestroy(XX, ierr)
 
     call KSPDestroy(ksp,ierr)
 
-!~     call dump_nonzero_structure(X, "X.dat",PETSC_COMM_WORLD, 0)
-!~     write(0,*) "------finished------"
-!~     call MPI_BARRIER(PETSC_COMM_WORLD,ierr)
-
-!~     call slepcfinalize(ierr)
-!~     stop
-!~     call MatSetOption(X, MAT_IGNORE_OFF_PROC_ENTRIES, PETSC_FALSE, ierr)
-
   end subroutine petsc_solve_cols_sparse_input
 
   subroutine petsc_solve_sparse_input_onsubcoms(A_in, B_in, X, nsim_in, matsolvertype)
+    ! Purpose: Solve a linear system AX = B using LU factorization on subcommunicators, handling multiple right-hand sides efficiently. This version assumes a sparse input matrix B.
+    !
+    ! Parameters:
+    !   A_in: The global coefficient matrix (input).
+    !   B_in: The global right-hand side matrix (input).
+    !   X: The solution matrix (output).
+    !   nsim_in: The maximum number of simultaneous right-hand sides to process.
+    !   matsolvertype: The type of matrix solver to use.
+
 #include <petsc/finclude/petsc.h>
     use petsc
     use MPI
@@ -604,27 +644,10 @@ contains
     PetscReal :: norm
     integer(8) :: counti, count_rate, countf
 
-
+    ! Set options for the solution matrix X
     call MatSetOption(X, MAT_NEW_NONZERO_LOCATIONS, PETSC_FALSE, ierr)
-!~     call MatSetOption(B, MAT_NEW_NONZERO_LOCATIONS, PETSC_TRUE, ierr)
-!~ we need this as we are flipping cols and rows
-!~     call MatSetOption(X, MAT_IGNORE_OFF_PROC_ENTRIES, PETSC_FALSE, ierr)
-!~     call MatSetOption(B, MAT_IGNORE_OFF_PROC_ENTRIES, PETSC_FALSE, ierr)
 
-!~ Transpose the matrix to have the columns as rows on the correct subcommunicator
-!~ this could probably done more efficient, but this is super easy. so for now
-!~ let it be.
-
-!~ this should rebalance the columns for the processors, in particular if B and X are not
-!~ square matrices. Maybe allocates a few to many NZ elements but should be fne.
-!~ one could set up the correct preallocator matrix.
-!~     call MatGetSize(B_in, nrow, ncol, ierr)
-!~     call MatCreateAIJ(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_DECIDE,ncol,nrow,0,PETSC_NULL_INTEGER, &
-!~       0,PETSC_NULL_INTEGER,B,ierr)
-!~     call MatAssemblyBegin(B, MAT_FINAL_ASSEMBLY, ierr) ! I think the values are cached.
-!~     call MatAssemblyEnd(B, MAT_FINAL_ASSEMBLY, ierr)
-!~     call petsc_aXpY(B, B_in, p_one, PETSC_TRUE, .true.)
-
+    ! Create a copy of B_in and transpose it
     call petsc_get_alloc_preG(B_in, Bt, 0, 0, .true.)
     call petsc_get_a_with_b_c(B, Bt, Bt, mattype_sparse)
     call MatPreallocatorPreallocate(Bt, PETSC_TRUE, B, ierr)
@@ -632,39 +655,35 @@ contains
     call MatDestroy(Bt, ierr)
     call petsc_aXpY(B, B_in, p_one, PETSC_FALSE, .true.)
 
-
-!~     call MatTranspose(B_in,  MAT_INITIAL_MATRIX,B,ierr)
-!~     call petsc_mat_info(B,"B ",ierr)
+    ! Get size and ownership range of B
     call MatGetSize(B, nrow, ncol, ierr)
-!~     write(0,*) "size ",nrow,ncol
-
     call MatGetOwnershipRange(B, nrow_loc1, nrow_loc2, ierr)
     nrow_loc = nrow_loc2 - nrow_loc1
     nrow_local_range(1) = nrow_loc1
     nrow_local_range(2) = nrow_loc2 - 1
-!~     write(0,fmt='(A,5i8)') "B ",inode, inode_group,nrow_loc,nrow_loc1,nrow_loc2
 
+    ! Allocate memory
     allocate(irows_loc(nrow_loc), irows(ncol), jrows(ncol), stat = ierr)
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "allocation error ", ierr
       call error()
     end if
 
-!~ I wonder if there is an easier way than to use this with MatSetValues
+    ! Set up local row indices
     do i = 1,nrow_loc
       irows_loc(i) = nrow_loc1 + i - 1
     end do
-
     do i = 1, ncol
       irows(i) = i - 1
     end do
-
 
     allocate (cols_offset(nprocs), cols_count(nprocs), stat=ierr)
     if (ierr .ne. 0) then
       write (errormsg, fmt='(A,i8)') "allocation error ", ierr
       call error()
     end if
+
+    ! Determine subcommunicator column ranges
 !~     call petsc_cols_to_subcomms(ncol, ncols_subcomm, cols_offset, cols_count)
     call flush(0)
     call MPI_BARRIER(PETSC_COMM_WORLD,ierr)

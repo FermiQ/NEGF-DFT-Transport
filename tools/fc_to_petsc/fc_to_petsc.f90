@@ -4,6 +4,20 @@ module fctopetsc_mod
   contains
   
       subroutine diag_mat(a,b,ew,ev,nev,ierr)
+        ! Purpose: This subroutine diagonalizes a given matrix using SLEPc.
+        !
+        ! Functionality:  The subroutine takes a matrix (a) and an optional matrix (b) as input. 
+        ! It then uses SLEPc to solve the standard or generalized eigenvalue problem Ax = λBx or Ax = λx. 
+        ! The eigenvalues are stored in the vector ew, and the eigenvectors (if requested) are stored in the matrix ev.
+        !
+        ! Parameters:
+        !   a (Mat): Input matrix A.
+        !   b (Mat): Input matrix B (optional, PETSC_NULL_MAT if not used).
+        !   ew (Vec): Output vector containing the eigenvalues.
+        !   ev (Mat): Output matrix containing the eigenvectors (optional, PETSC_NULL_MAT if not used).
+        !   nev (PetscInt): Number of eigenvalues to compute.
+        !   ierr (integer): Error code.
+
 #include <slepc/finclude/slepceps.h>
       use slepceps    
       
@@ -149,6 +163,13 @@ module fctopetsc_mod
 end module fctopetsc_mod
 
 program fc_to_petsc
+  ! Purpose: This program converts a force constant file from Conquest format to PETSc format.
+  !
+  ! Functionality: The program reads atomic coordinates and force constants from input files, 
+  ! constructs PETSc matrices for the force constant matrix, inverse square root mass matrix, and mass matrix.
+  ! It then symmetrizes the force constant matrix, computes the dynamical matrix, and diagonalizes it using SLEPc.
+  ! Finally, it saves the results to binary files in PETSc format.
+
   use mpi
   use ISO_C_BINDING
   use petscmat

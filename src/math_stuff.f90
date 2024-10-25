@@ -2,170 +2,133 @@ module mathstuff
 
   implicit none
 
+  ! Interface block for matrix inversion routines.  Provides a consistent way to call either real or complex inversion.
   interface invert
+    ! Subroutine to invert a complex double precision matrix.
     subroutine cinvert(A)
       implicit none
+      ! The complex double precision matrix to be inverted.  Modified in place.
       double complex :: A(:, :)
     end subroutine cinvert
 
+    ! Subroutine to invert a real double precision matrix.
     subroutine rinvert(A)
       implicit none
+      ! The real double precision matrix to be inverted. Modified in place.
       double precision :: A(:, :)
     end subroutine rinvert
 
   end interface invert
 
+  ! Interface block for matrix norm calculation. Allows calling either real or complex version.
   interface matnorm_my
+    ! Function to calculate the Frobenius norm of a real double precision matrix.
     function rmatnorm_my(a)
       implicit none
+      ! The real double precision input matrix.
       double precision :: a(:, :)
+      ! The Frobenius norm of the input matrix.
       double precision :: rmatnorm_my
     end function rmatnorm_my
 
+    ! Function to calculate the Frobenius norm of a complex double precision matrix.
     function cmatnorm_my(a)
       implicit none
+      ! The complex double precision input matrix.
       double complex :: a(:, :)
+      ! The Frobenius norm of the input matrix.
       double precision :: cmatnorm_my
     end function cmatnorm_my
   end interface matnorm_my
 
 contains
 
+  ! Function to check if an interval [j1, j2] overlaps with interval [i1, i2].
   function ininterval(i1, i2, j1, j2)
     integer :: i1, i2, j1, j2
     logical ::ininterval
 
+    ! Initialize the result to false.
     ininterval = .false.
 
+    ! Check for overlap.  The conditions are not entirely comprehensive and might need review.
     if ((j1 .ge. i1) .and. (j1 .le. i2)) ininterval = .true.
 
     if ((j2 .ge. i1) .and. (j1 .le. i1)) ininterval = .true.
 
   end function
 
+  ! Function to compute a modified Frobenius norm between two complex matrices.
   function matnorm_myab(a, b)
     implicit none
 
+    ! The two complex double precision input matrices.
     double complex :: a(:, :), b(:, :)
+    ! The computed modified Frobenius norm.
     double precision :: matnorm_myab
+    ! Variable to accumulate the trace.
     double precision :: trace
+    ! Temporary variable for intermediate calculations.
     double complex :: d
+    ! Loop counters.
     integer :: n, i, j
 
+    ! Get the size of the matrices. Assumes both are square and of the same size.
     n = size(a, 1)
 
+    ! Initialize the trace.
     trace = 0d0
+    ! Compute the trace of (a-b)*(a-b)^H.
     do j = 1, n
       do i = 1, n
         d = a(i, j) - b(i, j)
         trace = trace + d*conjg(d)
       end do
     end do
+    ! Return the square root of the trace.
     matnorm_myab = sqrt(trace)
 
   end function
 
+  ! Function to compute the trace of the product of two real double precision matrices.
   function rmatdotab(a, b)
     implicit none
 
+    ! The two real double precision input matrices.
     double precision :: a(:, :), b(:, :)
+    ! The computed trace.
     double precision :: rmatdotab
+    ! Variable to accumulate the trace.
     double precision :: trace
+    ! Loop counters.
     integer :: n, i, j
 
+    ! Get the size of the matrices. Assumes both are square and of the same size.
     n = size(a, 1)
 
+    ! Initialize the trace.
     trace = 0d0
+    ! Compute the trace of a*b.
     do j = 1, n
       do i = 1, n
         trace = trace + a(i, j)*b(i, j)
       end do
     end do
+    ! Return the trace.
     rmatdotab = trace
 
   end function
 
-!~     subroutine squarerootinv(A)
-!~       use lapack95
-!~       use blas95
-!~       use kinds
-!~       implicit none
-
-!~       real(dp), allocatable :: A(:,:)
-!~       real(dp), allocatable :: w(:),b(:,:),tmp(:,:)
-!~       integer :: n,ierr,i1
-!~       real(dp) :: eps
-
-!~       eps=1d-5
-!~       n=size(A,1)
-!~       allocate(w(n),b(n,n),tmp(n,n),stat=ierr)
-!~       if (ierr.ne.0) then
-!~         write(0,*) "allocation error ",ierr
-!~       end if
-
-!~       b=0d0
-!~       call syev(a,w,'V','L',ierr)
-!~       do i1=1,n
-!~         if (w(i1).lt.0) then
-!~           write(0,*) "get S^1/2 negative EV ",i1,w(i1)
-!~           stop
-!~         end if
-
-!~         if (w(i1).gt.0d0) then
-!~           b(i1,i1)=1d0/sqrt(w(i1))
-!~         else
-!~           b(i1,i1)=1d-16
-!~         end if
-!~       end do
-
-!~       call gemm(a,b,tmp,'n','n')
-!~       call gemm(tmp,a,b,'n','t')
-!~       a=b
-
-!~     end subroutine squarerootinv
-
-!~         subroutine squareroot(A)
-!~       use lapack95
-!~       use blas95
-!~       use kinds
-!~       implicit none
-
-!~       real(dp), allocatable :: A(:,:)
-!~       real(dp), allocatable :: w(:),b(:,:),tmp(:,:)
-!~       integer :: n,ierr,i1
-!~       real(dp) :: eps
-
-!~       eps=1d-5
-!~       n=size(A,1)
-!~       allocate(w(n),b(n,n),tmp(n,n),stat=ierr)
-!~       if (ierr.ne.0) then
-!~         write(0,*) "allocation error ",ierr
-!~       end if
-
-!~       b=0d0
-!~       call syev(a,w,'V','L',ierr)
-!~       do i1=1,n
-!~         if (w(i1).lt.0) then
-!~           write(0,*) "get S^1/2 negative EV ",i1,w(i1)
-!~           w(i1)=0d0
-
-!~         end if
-
-!~         b(i1,i1)=sqrt(w(i1))
-!~       end do
-
-!~       call gemm(a,b,tmp,'n','n')
-!~       call gemm(tmp,a,b,'n','t')
-!~       a=b
-
-!~     end subroutine squareroot
-
+  ! Function to compute the cross product of two 3D vectors.
   function vector_product(a, b)
     use kinds
     implicit none
+    ! The two input 3D vectors.
     real(dp), intent(in) :: a(3), b(3)
+    ! The resulting cross product vector.
     real(dp) :: vector_product(3)
 
+    ! Compute the cross product using the standard formula.
     vector_product(1) = a(2)*b(3) - a(3)*b(2)
     vector_product(2) = a(3)*b(1) - a(1)*b(3)
     vector_product(3) = a(1)*b(2) - a(2)*b(1)
@@ -173,204 +136,3 @@ contains
   end function vector_product
 
 end module
-
-!~     subroutine cinvert(A)
-!~       use lapack95
-!~       implicit none
-!~       double complex :: A(:,:)
-
-!~       integer,allocatable :: ipiv(:)
-!~       integer :: n,ierr
-
-!~       n=size(A,1)
-
-!~       allocate(ipiv(n),stat=ierr)
-!~       if (ierr.ne.0) then
-!~         write(0,*) "allocation error ipiv",ierr
-!~         stop
-!~       end if
-
-!~       call getrf(A,ipiv,ierr)
-
-!~       if (ierr.ne.0) then
-!~         write(0,*) "error in getrf ",ierr
-!~         stop
-!~       end if
-
-!~       call getri(A,ipiv,ierr)
-
-!~       if (ierr.ne.0) then
-!~         write(0,*) "error in getri ",ierr
-!~         stop
-!~       end if
-
-!~     end subroutine cinvert
-
-!~     subroutine rinvert(A)
-!~       use lapack95
-!~       implicit none
-!~       double precision :: A(:,:)
-
-!~       integer,allocatable :: ipiv(:)
-!~       integer :: n,ierr
-
-!~       n=size(A,1)
-
-!~       allocate(ipiv(n),stat=ierr)
-!~       if (ierr.ne.0) then
-!~         write(0,*) "allocation error ipiv",ierr
-!~         stop
-!~       end if
-
-!~       call getrf(A,ipiv,ierr)
-
-!~       if (ierr.ne.0) then
-!~         write(0,*) "error in getrf ",ierr
-!~         stop
-!~       end if
-!~       call getri(A,ipiv,ierr)
-
-!~       if (ierr.ne.0) then
-!~         write(0,*) "error in getri ",ierr
-!~         stop
-!~       end if
-
-!~     end subroutine rinvert
-
-!~     function cmatnorm_my(a)
-!~       implicit none
-
-!~       double complex :: a(:,:)
-!~       double precision :: trace,cmatnorm_my
-!~       integer :: n,i,j
-
-!~       n=size(a,1)
-
-!~       trace=0d0
-!~       do j=1,n
-!~         do i=1,n
-!~         trace=trace+a(i,j)*conjg(a(i,j))
-!~         end do
-!~       end do
-!~       cmatnorm_my=sqrt(trace)
-
-!~     end function cmatnorm_my
-
-!~     function rmatnorm_my(a)
-!~       implicit none
-
-!~       double precision :: a(:,:)
-!~       double precision :: trace,rmatnorm_my
-!~       integer :: n,i,j
-
-!~       n=size(a,1)
-
-!~       trace=0d0
-!~       do j=1,n
-!~         do i=1,n
-!~         trace=trace+a(i,j)*a(i,j)
-!~         end do
-!~       end do
-!~       rmatnorm_my=sqrt(trace)
-
-!~     end function rmatnorm_my
-!~     subroutine cinvert(A)
-!~       use lapack95
-!~       implicit none
-!~       double complex :: A(:,:)
-
-!~       integer,allocatable :: ipiv(:)
-!~       integer :: n,ierr
-
-!~       n=size(A,1)
-
-!~       allocate(ipiv(n),stat=ierr)
-!~       if (ierr.ne.0) then
-!~         write(0,*) "allocation error ipiv",ierr
-!~         stop
-!~       end if
-
-!~       call getrf(A,ipiv,ierr)
-
-!~       if (ierr.ne.0) then
-!~         write(0,*) "error in getrf ",ierr
-!~         stop
-!~       end if
-
-!~       call getri(A,ipiv,ierr)
-
-!~       if (ierr.ne.0) then
-!~         write(0,*) "error in getri ",ierr
-!~         stop
-!~       end if
-
-!~     end subroutine cinvert
-
-!~     subroutine rinvert(A)
-!~       use lapack95
-!~       implicit none
-!~       double precision :: A(:,:)
-
-!~       integer,allocatable :: ipiv(:)
-!~       integer :: n,ierr
-
-!~       n=size(A,1)
-
-!~       allocate(ipiv(n),stat=ierr)
-!~       if (ierr.ne.0) then
-!~         write(0,*) "allocation error ipiv",ierr
-!~         stop
-!~       end if
-
-!~       call getrf(A,ipiv,ierr)
-
-!~       if (ierr.ne.0) then
-!~         write(0,*) "error in getrf ",ierr
-!~         stop
-!~       end if
-!~       call getri(A,ipiv,ierr)
-
-!~       if (ierr.ne.0) then
-!~         write(0,*) "error in getri ",ierr
-!~         stop
-!~       end if
-
-!~     end subroutine rinvert
-
-!~     function cmatnorm_my(a)
-!~       implicit none
-
-!~       double complex :: a(:,:)
-!~       double precision :: trace,cmatnorm_my
-!~       integer :: n,i,j
-
-!~       n=size(a,1)
-
-!~       trace=0d0
-!~       do j=1,n
-!~         do i=1,n
-!~         trace=trace+a(i,j)*conjg(a(i,j))
-!~         end do
-!~       end do
-!~       cmatnorm_my=sqrt(trace)
-
-!~     end function cmatnorm_my
-
-!~     function rmatnorm_my(a)
-!~       implicit none
-
-!~       double precision :: a(:,:)
-!~       double precision :: trace,rmatnorm_my
-!~       integer :: n,i,j
-
-!~       n=size(a,1)
-
-!~       trace=0d0
-!~       do j=1,n
-!~         do i=1,n
-!~         trace=trace+a(i,j)*a(i,j)
-!~         end do
-!~       end do
-!~       rmatnorm_my=sqrt(trace)
-
-!~     end function rmatnorm_my

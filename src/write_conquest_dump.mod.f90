@@ -4,6 +4,23 @@ module write_conquest_dump
 contains
 
   subroutine write_conquest(outfile, xyz, cell, nat, tomat, inao, neigh, nlist, ndim, atoms, p_mat)
+    ! Purpose: Writes Conquest-format dump files containing atomic coordinates, connectivity, and density matrix information.
+    !
+    ! Functionality: This subroutine writes data to a file in a format compatible with the Conquest DFT code.  It handles parallel I/O using MPI and PETSc for efficient processing of large datasets.  The subroutine writes atomic positions, connectivity information (neighbors, atom types), and the density matrix.
+    !
+    ! Parameters:
+    !   outfile (character*): Name of the output file.
+    !   xyz (real(dp), allocatable(:, :)): Array of atomic coordinates (x, y, z for each atom).
+    !   cell (real(dp)(3, 3)): Unit cell vectors.
+    !   nat (integer): Total number of atoms.
+    !   tomat (integer, allocatable(:, :)): Connectivity matrix defining the relationship between atoms.
+    !   inao (integer, allocatable(:)): Array containing the number of atomic orbitals for each atom.
+    !   neigh (integer, allocatable(:)): Array specifying the number of neighbors for each atom.
+    !   nlist (integer, allocatable(:)): Neighbor list array.
+    !   ndim (integer, allocatable(:)): Array containing dimensionality information for each atom.
+    !   atoms (integer, allocatable(:)): Array mapping global atom indices to local indices.
+    !   p_mat (Mat, allocatable(:, :, :)): 3D array representing the density matrix.
+
 #include <petsc/finclude/petsc.h>
     use petscmat
     use mpi
@@ -185,6 +202,25 @@ contains
 
   subroutine write_conquest2(outfile, outdir, xyz, cell, nat, tomat, tomatr, inao, neigh, &
  &  nlist, ndim, atoms, p_mat)
+    ! Purpose: Writes Conquest-format dump files with improved efficiency and handling of large density matrices.
+    !
+    ! Functionality: This subroutine is a more efficient version of `write_conquest`, designed to handle larger density matrices and improve I/O performance. It uses buffered writing to reduce the number of MPI calls.  The output filename is constructed by combining `outdir` and `outfile`.
+    !
+    ! Parameters:
+    !   outfile (character*): Base name of the output file.
+    !   outdir (character*): Directory where the output file will be written.
+    !   xyz (real(dp), allocatable(:, :)): Array of atomic coordinates.
+    !   cell (real(dp)(3, 3)): Unit cell vectors.
+    !   nat (integer): Total number of atoms.
+    !   tomat (integer, allocatable(:, :)): Connectivity matrix.
+    !   tomatr (real(dp), allocatable(:, :)): Matrix containing additional real-valued data related to connectivity.
+    !   inao (integer, allocatable(:)): Number of atomic orbitals per atom.
+    !   neigh (integer, allocatable(:)): Number of neighbors for each atom.
+    !   nlist (integer, allocatable(:)): Neighbor list.
+    !   ndim (integer, allocatable(:)): Dimensionality information.
+    !   atoms (integer, allocatable(:)): Mapping of global to local atom indices.
+    !   p_mat (Mat, allocatable(:, :, :)): Density matrix.
+
 #include <petsc/finclude/petsc.h>
     use petscmat
     use mpi

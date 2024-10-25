@@ -3,7 +3,25 @@ module slepc_mod
   implicit none
 
 contains
+
   subroutine diag_mat(a, b, ew, ev, nev, eps_which_in)
+    ! Purpose: This subroutine computes eigenvalues and eigenvectors of a matrix using SLEPc.
+    !
+    ! Functionality:  The subroutine uses SLEPc's EPS solver to find eigenvalues and eigenvectors 
+    !                 of a given matrix (or generalized eigenvalue problem). It handles both standard 
+    !                 and generalized eigenvalue problems. The results are stored in the provided 
+    !                 eigenvalue and eigenvector vectors/matrices.
+    !
+    ! Parameters:
+    !   a: (Input) Mat - The input matrix (A in Ax = λx or Ax = λBx).
+    !   b: (Input) Mat - The input matrix (B in Ax = λBx), can be PETSC_NULL_MAT for standard eigenvalue problem.
+    !   ew: (Output) Vec - Vector to store the computed eigenvalues.
+    !   ev: (Output) Mat - Matrix to store the computed eigenvectors (optional, can be PETSC_NULL_MAT).
+    !   nev: (Input) PetscInt - The number of eigenvalues to compute.
+    !   eps_which_in: (Input) EPSWhich, optional - Specifies which eigenvalues to compute (e.g., largest magnitude). 
+    !                                              Defaults to EPS_LARGEST_MAGNITUDE if not provided.
+
+
 #include <slepc/finclude/slepceps.h>
     use slepceps
     use petsc_mod
@@ -138,6 +156,25 @@ contains
   end subroutine diag_mat
 
   subroutine diag_mat2(a, b, ew, ev, nev, eps_calc, eps_which_in)
+    ! Purpose: This subroutine computes eigenvalues and eigenvectors of a matrix using SLEPc, 
+    !          iteratively refining the solution and potentially stopping early based on a 
+    !          specified tolerance.
+    !
+    ! Functionality: This subroutine is similar to `diag_mat` but adds iterative solving and 
+    !                 early termination based on a convergence criterion (`eps_calc`). It uses 
+    !                 deflation to improve the accuracy of subsequent iterations.
+    !
+    ! Parameters:
+    !   a: (Input) Mat - The input matrix (A in Ax = λx or Ax = λBx).
+    !   b: (Input) Mat - The input matrix (B in Ax = λBx), can be PETSC_NULL_MAT for standard eigenvalue problem.
+    !   ew: (Output) Vec - Vector to store the computed eigenvalues.
+    !   ev: (Output) Mat - Matrix to store the computed eigenvectors (optional, can be PETSC_NULL_MAT).
+    !   nev: (Input) PetscInt - The number of eigenvalues to compute.
+    !   eps_calc: (Input) real(dp), optional - Tolerance for early termination. If an eigenvalue's magnitude 
+    !                                          is less than or equal to `eps_calc`, the computation stops.
+    !   eps_which_in: (Input) EPSWhich, optional - Specifies which eigenvalues to compute (e.g., largest magnitude). 
+    !                                              Defaults to EPS_LARGEST_MAGNITUDE if not provided.
+
 #include <slepc/finclude/slepceps.h>
     use slepceps
     use petsc_mod

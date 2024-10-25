@@ -1,3 +1,4 @@
+```fortran
 subroutine kronrod(n, eps, x, w1, w2)
 
 !*****************************************************************************80
@@ -210,7 +211,8 @@ subroutine kronrod(n, eps, x, w1, w2)
   end if
 
   return
-end
+end subroutine kronrod
+
 subroutine kronrod_adjust(a, b, n, x, w1, w2)
 
 !*****************************************************************************80
@@ -256,7 +258,8 @@ subroutine kronrod_adjust(a, b, n, x, w1, w2)
   w2(1:n + 1) = ((b - a)/2.0D+00)*w2(1:n + 1)
 
   return
-end
+end subroutine kronrod_adjust
+
 subroutine abwe1(n, m, eps, coef2, even, b, x, w)
 
 !*****************************************************************************80
@@ -420,7 +423,8 @@ subroutine abwe1(n, m, eps, coef2, even, b, x, w)
   w = coef2/(fd*d2)
 
   return
-end
+end subroutine abwe1
+
 subroutine abwe2(n, m, eps, coef2, even, b, x, w1, w2)
 
 !*****************************************************************************80
@@ -585,4 +589,4 @@ subroutine abwe2(n, m, eps, coef2, even, b, x, w1, w2)
   end if
 
   return
-end
+end subroutine abwe2
